@@ -1,0 +1,6 @@
+VITE_API_URL=http://localhost:5000/api
+
+# .env (local)
+VITE_WS_URL=ws://localhost:5000/bot
+VITE_DEFAULT_CORPORATE=A2plus
+VITE_DEFAULT_WEBRTC_ID=webrtc_talk

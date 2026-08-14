@@ -1,0 +1,61 @@
+import SidebarHeader from './SidebarHeader';
+import NewChatButton from './NewChatButton';
+import HistoryList   from './HistoryList';
+import BottomMenu    from './BottomMenu';
+
+const SidebarContent = ({ isOpen, onToggle, showToggle, onClose }) => (
+  <div className="flex flex-col h-full overflow-visible">
+    <SidebarHeader isOpen={isOpen} onToggle={onToggle ?? onClose} showToggle={showToggle} />
+
+    <div className="px-3 pt-3 shrink-0">
+      <NewChatButton isOpen={isOpen} />
+    </div>
+
+    {/* History — only when open */}
+    {isOpen && (
+      <div className="flex-1 min-h-0 px-3 pt-4 overflow-hidden">
+        <HistoryList isOpen={isOpen} />
+      </div>
+    )}
+
+    {/* Spacer when closed */}
+    {!isOpen && <div className="flex-1" />}
+
+    <div className="shrink-0 px-3 pb-3 pt-2 border-t border-gray-100 dark:border-white/6">
+      <BottomMenu isOpen={isOpen} />
+    </div>
+  </div>
+);
+
+const Sidebar = ({ isMobile, isOpen, mobileOpen, onToggleDesktop, onMobileClose }) => {
+
+  if (isMobile) {
+    if (!mobileOpen) return null;
+    return (
+      <>
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 animate-fade-in"
+          onClick={onMobileClose}
+        />
+        <div className="fixed left-0 top-0 h-full w-64 z-50 bg-white dark:bg-gray-950 border-r border-gray-100 dark:border-white/6 shadow-xl animate-slide-left overflow-visible">
+          <SidebarContent isOpen={true} onClose={onMobileClose} showToggle={false} />
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div
+      className="fixed left-0 top-0 h-full z-40 bg-white dark:bg-gray-950 border-r border-gray-100 dark:border-white/6 flex flex-col transition-all duration-300 ease-smooth overflow-visible"
+      style={{ width: isOpen ? '16rem' : '4.5rem' }}
+    >
+      <SidebarContent
+        isOpen={isOpen}
+        onToggle={onToggleDesktop}
+        showToggle={true}
+      />
+    </div>
+  );
+};
+
+export default Sidebar;
