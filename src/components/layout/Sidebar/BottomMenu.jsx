@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useCurrentUser, useLogout } from '../../../hooks/useAuth';
+import { useLogout } from '../../../hooks/useAuth';
 import toast from 'react-hot-toast';
 
 const NAV_ITEMS = [
@@ -32,17 +32,13 @@ const NAV_ITEMS = [
 const BottomMenu = ({ isOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { refetch } = useCurrentUser();
-  const { logout } = useLogout();
+  const { logout, isLoading: isLoggingOut } = useLogout();
 
   const handleLogout = async () => {
 
     navigate('/', { replace: true });
     const res = await logout();
     if (res.success) {
-      // if (typeof refetch === 'function') {
-      //   await refetch();
-      // }
       toast.success('Signed out');
 
     }
@@ -55,11 +51,13 @@ const BottomMenu = ({ isOpen }) => {
         return (
           <div key={item.id} className="relative group">
             <motion.button
+              type="button"
               onClick={() => navigate(item.path)}
+              aria-current={active ? 'page' : undefined}
               whileHover={{ x: isOpen ? 2 : 0 }}
               whileTap={{ scale: 0.97 }}
               className={[
-                'w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-150',
+                'w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500',
                 isOpen ? '' : 'justify-center',
                 active
                   ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300'
@@ -77,9 +75,12 @@ const BottomMenu = ({ isOpen }) => {
       {/* Logout */}
       <div className="relative group">
         <motion.button
+          type="button"
           onClick={handleLogout}
+          disabled={isLoggingOut}
+          aria-busy={isLoggingOut || undefined}
           whileTap={{ scale: 0.97 }}
-          className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-xs font-medium text-gray-500 dark:text-gray-500 hover:bg-red-50 dark:hover:bg-red-500/8 hover:text-red-600 dark:hover:text-red-400 transition-all duration-150 ${isOpen ? '' : 'justify-center'
+          className={`w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-xs font-medium text-gray-500 dark:text-gray-500 hover:bg-red-50 dark:hover:bg-red-500/8 hover:text-red-600 dark:hover:text-red-400 transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:cursor-not-allowed disabled:opacity-50 ${isOpen ? '' : 'justify-center'
             }`}
         >
           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

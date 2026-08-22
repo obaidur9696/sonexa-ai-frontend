@@ -5,6 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Sonexa AI — Voice AI that feels naturally human. Sub-100ms latency, 50+ languages, 100+ topics." />
     <meta name="theme-color" content="#4f46e5" />
+    <script>
+      (() => {
+        try {
+          const theme = localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+          const root = document.documentElement;
+          const isDark = theme === 'dark';
+          root.classList.toggle('dark', isDark);
+          root.style.colorScheme = theme;
+          root.style.backgroundColor = isDark ? '#09090b' : '#ffffff';
+          document.querySelector('meta[name="theme-color"]')?.setAttribute(
+            'content',
+            isDark ? '#09090b' : '#4f46e5'
+          );
+        } catch {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.style.colorScheme = 'light';
+          document.documentElement.style.backgroundColor = '#ffffff';
+        }
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Sonexa AI</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

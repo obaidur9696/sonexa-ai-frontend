@@ -6,13 +6,15 @@ import { Toaster } from 'react-hot-toast';
 import { store } from './store/store';
 import { router } from './routes/AppRoutes';
 import { AuthProvider } from './providers/AuthProvider';
+import { ThemeProvider } from './providers/ThemeProvider';
 import ErrorBoundary from './components/ui/ErrorBoundary/ErrorBoundary';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <Provider store={store}>
-      <ErrorBoundary>
-        <AuthProvider>
+      <ThemeProvider>
+        <ErrorBoundary>
+          <AuthProvider>
 
           <Toaster
             position="top-right"
@@ -64,7 +66,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
           <RouterProvider router={router} />
 
-        </AuthProvider>
-      </ErrorBoundary>
+          </AuthProvider>
+        </ErrorBoundary>
+      </ThemeProvider>
     </Provider>
 );

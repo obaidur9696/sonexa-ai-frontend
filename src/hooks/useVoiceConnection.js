@@ -43,6 +43,7 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
   const [isMuted, setIsMuted] = useState(false);
   const [remoteStream, setRemoteStream] = useState(null);
   const [localStream, setLocalStream] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState(null);
@@ -51,7 +52,6 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
      REFS
   ================================ */
   const roomIdRef = useRef(null);
-  const sessionIdRef = useRef(null); // ✅ Actual sessionId from backend
   const hasStartedRef = useRef(false);
   const formDataRef = useRef(formData);
   const activeTurnRef = useRef(null);        // { id, sender, text }
@@ -60,6 +60,7 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
   const timerSyncIntervalRef = useRef(null);
   const countdownIntervalRef = useRef(null);
   const connectionStateRef = useRef(connectionState);
+  const disconnectRef = useRef(null);
 
   /* ================================
      UPDATE FORM DATA REF
@@ -312,9 +313,14 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
   const handleBotReady = useCallback((data) => {
     setConnectionState('connected');
 
+    if (timerSyncIntervalRef.current) {
+      clearInterval(timerSyncIntervalRef.current);
+      timerSyncIntervalRef.current = null;
+    }
+
     if (data?.sessionId) {
-      sessionIdRef.current = data.sessionId;
-      console.log('[VoiceConnection] ✅ Session ID received:', sessionIdRef.current);
+      setSessionId(data.sessionId);
+      console.log('[VoiceConnection] Session ID received:', data.sessionId);
     } else {
       console.warn('[VoiceConnection] ⚠️ No sessionId in bot-ready event:', data);
     }
@@ -347,29 +353,33 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
     wsService.on('transcript_start', handleTranscriptStart);
     wsService.on('transcript_chunk', handleTranscriptChunk);
     wsService.on('transcript_end', handleTranscriptEnd);
-    wsService.on('session_error', (data) => {
+    const handleSessionError = (data) => {
       console.log('[WS] Session error:', data);
       const msg = data.message || data.payload?.message || 'Session validation failed';
       setErrorMessage(msg);
       setConnectionState('failed');
-      disconnect();
-    });
+      disconnectRef.current?.();
+    };
 
-    wsService.on('session_expired', (data) => {
+    const handleSessionExpired = (data) => {
       console.log('[WS] Session expired:', data);
       const msg = data.message || 'Your session has expired. Thank you for using Sonexa AI.';
       setSessionExpireMessage(msg);
       setConnectionState('ended');
-      disconnect();
-    });
+      disconnectRef.current?.();
+    };
 
-    wsService.on('timer_sync', (data) => {
+    const handleTimerSync = (data) => {
       const { remainingSeconds } = data.payload || data;
       console.log('[WS] Timer sync received:', remainingSeconds);
       if (remainingSeconds !== undefined && remainingSeconds > 0) {
         startCountdown(remainingSeconds);
       }
-    });
+    };
+
+    wsService.on('session_error', handleSessionError);
+    wsService.on('session_expired', handleSessionExpired);
+    wsService.on('timer_sync', handleTimerSync);
 
     const cleanup = () => {
       wsService.off('signal', handleSignal);
@@ -377,6 +387,9 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
       wsService.off('transcript_start', handleTranscriptStart);
       wsService.off('transcript_chunk', handleTranscriptChunk);
       wsService.off('transcript_end', handleTranscriptEnd);
+      wsService.off('session_error', handleSessionError);
+      wsService.off('session_expired', handleSessionExpired);
+      wsService.off('timer_sync', handleTimerSync);
     };
 
     listenersCleanupRef.current = cleanup;
@@ -435,6 +448,13 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
     messageCounterRef.current = 0;
   }, [stopCountdown]);
 
+  useEffect(() => {
+    disconnectRef.current = disconnect;
+    return () => {
+      if (disconnectRef.current === disconnect) disconnectRef.current = null;
+    };
+  }, [disconnect]);
+
   /* ================================
      LEAVE SESSION
   ================================ */
@@ -466,7 +486,7 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
   ================================ */
 
   const connect = useCallback(
-    async (cancelledRef) => {
+    async (cancelledRef, signal) => {
       if (hasStartedRef.current) return;
       hasStartedRef.current = true;
 
@@ -486,19 +506,9 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
 
         wsService.connect();
 
-        await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('WebSocket timeout')), 10000);
-          const checkInterval = setInterval(() => {
-            if (wsService.connected) {
-              clearTimeout(timeout);
-              clearInterval(checkInterval);
-              resolve();
-            }
-          }, 100);
-        });
+        await wsService.waitForConnection(10000, signal);
 
         if (cancelledRef.current) return;
-console.log("data at join time", formDataRef.current);
         wsService.send({
           type: 'join',
           roomId,
@@ -515,11 +525,11 @@ console.log("data at join time", formDataRef.current);
         console.error('[useVoiceConnection] Connection error:', err);
         if (!cancelledRef.current) {
           setConnectionState('failed');
-          hasStartedRef.current = false;
+          disconnect();
         }
       }
     },
-    [registerEventListeners]
+    [disconnect, registerEventListeners]
   );
 
   /* ================================
@@ -528,12 +538,14 @@ console.log("data at join time", formDataRef.current);
 
   useEffect(() => {
     const cancelledRef = { current: false };
-    connect(cancelledRef);
+    const controller = new AbortController();
+    connect(cancelledRef, controller.signal);
     return () => {
       cancelledRef.current = true;
+      controller.abort();
       disconnect();
     };
-  }, []);
+  }, [connect, disconnect]);
 
   /* ================================
      RETURN API
@@ -556,6 +568,6 @@ console.log("data at join time", formDataRef.current);
     leaveSession,
     disconnect,
     sendEvent,
-    sessionId: sessionIdRef.current //
+    sessionId,
   };
 };

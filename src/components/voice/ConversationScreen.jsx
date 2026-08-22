@@ -85,7 +85,7 @@ const MessageBubble = memo(({ message }) => {
 /* ================================
    MAIN CONVERSATION SCREEN
 ================================ */
-const ConversationScreen = ({ messages }) => {
+const ConversationScreen = memo(({ messages }) => {
   const containerRef = useRef(null);
   const bottomRef = useRef(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -179,6 +179,6 @@ const ConversationScreen = ({ messages }) => {
       )}
     </div>
   );
-};
+});
 
 export default ConversationScreen;

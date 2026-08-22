@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useId } from 'react';
 
 const Input = forwardRef(({
   type           = 'text',
@@ -18,6 +18,10 @@ const Input = forwardRef(({
   inputClassName = '',
   ...rest
 }, ref) => {
+  const generatedId = useId();
+  const inputId = rest.id ?? generatedId;
+  const errorId = `${inputId}-error`;
+  const hintId = `${inputId}-hint`;
   const hasError  = Boolean(error);
   const hasIcon   = Boolean(icon);
   const iconLeft  = hasIcon && iconPosition === 'left';
@@ -27,7 +31,7 @@ const Input = forwardRef(({
     <div className={`field-group ${fullWidth ? 'w-full' : 'w-64'} ${className}`}>
 
       {label && (
-        <label className="field-label">
+        <label htmlFor={inputId} className="field-label">
           {label}
           {required && (
             <span className="text-red-500 ml-0.5 normal-case tracking-normal font-normal">*</span>
@@ -46,6 +50,7 @@ const Input = forwardRef(({
 
         <input
           ref={ref}
+          id={inputId}
           type={type}
           value={value}
           onChange={onChange}
@@ -53,6 +58,8 @@ const Input = forwardRef(({
           placeholder={placeholder}
           disabled={disabled}
           required={required}
+          aria-invalid={hasError || undefined}
+          aria-describedby={hasError ? errorId : hint ? hintId : undefined}
           className={[
             'input',
             hasError  ? 'input-error' : '',
@@ -76,7 +83,7 @@ const Input = forwardRef(({
       </div>
 
       {hasError && (
-        <p className="field-error">
+        <p id={errorId} className="field-error">
           <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
           </svg>
@@ -85,7 +92,7 @@ const Input = forwardRef(({
       )}
 
       {hint && !hasError && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{hint}</p>
+        <p id={hintId} className="text-xs text-gray-400 dark:text-gray-500 mt-1">{hint}</p>
       )}
     </div>
   );

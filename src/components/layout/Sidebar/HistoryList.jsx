@@ -12,79 +12,12 @@ const formatDate = (dateString) => {
 };
 
 const HistoryList = ({ isOpen }) => {
-  const { sessions, isLoading, isLoadingMore, hasMore, loadMore, error, refresh } = useUserSessions(1, 10);
+  const { sessions, isLoading, isLoadingMore, hasMore, loadMore, error } = useUserSessions(1, 10);
   const observer = useRef(null);
 
-  // ✅ Auto-refresh when component mounts
   useEffect(() => {
-    refresh();
+    return () => observer.current?.disconnect();
   }, []);
-
-  // ✅ Check for pending session on mount
-  useEffect(() => {
-    const pendingSessionId = localStorage.getItem('pendingSessionId');
-    const pendingStarted = localStorage.getItem('pendingSessionStarted');
-
-    if (pendingSessionId && pendingStarted) {
-      const elapsed = Date.now() - parseInt(pendingStarted);
-      // If still within 30s window, refresh to check if session is ready
-      if (elapsed < 30000) {
-        console.log('[HistoryList] Pending session found, refreshing list...');
-        refresh();
-        
-        // Also start polling for this session using the same logic
-        // The polling will continue even after this component mounts
-        const interval = setInterval(async () => {
-          try {
-            // Check if session is now ended
-            const result = await refresh();
-            const sessionsList = result?.data?.sessions || [];
-            const foundSession = sessionsList.find(s => s.id === pendingSessionId);
-            
-            if (foundSession && foundSession.status === 'ended') {
-              console.log('[HistoryList] ✅ Pending session is now ended!');
-              localStorage.removeItem('pendingSessionId');
-              localStorage.removeItem('pendingSessionStarted');
-              clearInterval(interval);
-              refresh(); // Final refresh to show updated title
-            }
-          } catch (error) {
-            console.log('[HistoryList] Polling error:', error.message);
-          }
-        }, 3000);
-
-        // Cleanup after 30s
-        setTimeout(() => {
-          clearInterval(interval);
-          localStorage.removeItem('pendingSessionId');
-          localStorage.removeItem('pendingSessionStarted');
-        }, 30000);
-
-        return () => clearInterval(interval);
-      } else {
-        // Expired
-        localStorage.removeItem('pendingSessionId');
-        localStorage.removeItem('pendingSessionStarted');
-      }
-    }
-  }, []);
-
-  // ✅ Auto-refresh when user returns to tab
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        refresh();
-        // Also check pending session
-        const pendingSessionId = localStorage.getItem('pendingSessionId');
-        if (pendingSessionId) {
-          console.log('[HistoryList] User returned, checking pending session...');
-          refresh();
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [refresh]);
 
   const lastRef = useCallback((node) => {
     if (isLoadingMore) return;
@@ -104,7 +37,7 @@ const HistoryList = ({ isOpen }) => {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <nav aria-label="Recent conversations" className="h-full flex flex-col">
       {isOpen && (
         <p className="text-label pb-2.5 shrink-0 px-1">Recent Chats</p>
       )}
@@ -167,7 +100,7 @@ const HistoryList = ({ isOpen }) => {
           )
         )}
       </div>
-    </div>
+    </nav>
   );
 };
 

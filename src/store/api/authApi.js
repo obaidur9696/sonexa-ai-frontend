@@ -1,7 +1,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
-import { createBaseQueryWithReauth } from './baseQueryWithReauth';
+import { apiBaseUrl, createBaseQueryWithReauth } from './baseQueryWithReauth';
 
-const baseQueryWithReauth = createBaseQueryWithReauth(import.meta.env.VITE_API_URL || 'http://localhost:3000/api');
+const baseQueryWithReauth = createBaseQueryWithReauth(apiBaseUrl);
 
 export const authApi = createApi({
   reducerPath: 'authApi',
@@ -13,6 +13,7 @@ export const authApi = createApi({
     }),
     login: builder.mutation({
       query: (credentials) => ({ url: '/v1/users/login', method: 'POST', body: credentials }),
+      invalidatesTags: ['User'],
     }),
     logout: builder.mutation({
       query: () => ({ url: '/v1/users/logout', method: 'POST' }),
@@ -21,6 +22,7 @@ export const authApi = createApi({
     getCurrentUser: builder.query({
       query: () => '/v1/users/current-user',
       providesTags: ['User'],
+      keepUnusedDataFor: 300,
     }),
     updateAccount: builder.mutation({
       query: (userData) => ({ url: '/v1/users/update-account', method: 'PATCH', body: userData }),

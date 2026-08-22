@@ -35,7 +35,7 @@ class WebRTCService {
     this.pc = null; // RTCPeerConnection
     this.localStream = null; // User's mic MediaStream
     this.remoteStream = null; // Bot's audio MediaStream
-    this.audioElement = null; // Internal <audio> to autoplay bot voice
+    this.audioElement = null; // Internal <audio> owned by the WebRTC service
 
     /* ── ICE candidate queue ──
        Candidates from server are queued here until
@@ -64,8 +64,8 @@ class WebRTCService {
     }
 
     console.log('[WebRTC] Initializing...');
-    this._createPeerConnection();
-    await this._getUserMedia();
+    const peerConnection = this._createPeerConnection();
+    await this._getUserMedia(peerConnection);
   }
 
   /* ─────────────────────────────────────────
@@ -85,8 +85,15 @@ class WebRTCService {
 
     console.log('[WebRTC] Creating SDP offer...');
 
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
+    const peerConnection = this.pc;
+    const offer = await peerConnection.createOffer();
+    if (this.pc !== peerConnection || peerConnection.connectionState === 'closed') {
+      throw new Error('[WebRTC] Offer creation cancelled');
+    }
+    await peerConnection.setLocalDescription(offer);
+    if (this.pc !== peerConnection || peerConnection.connectionState === 'closed') {
+      throw new Error('[WebRTC] Offer creation cancelled');
+    }
 
     // Send offer to server — server will respond with 'signal' answer
     wsService.send({
@@ -111,10 +118,17 @@ class WebRTCService {
       throw new Error('[WebRTC] Cannot handle answer — not initialized');
     }
 
+    if (this._remoteDescriptionSet) {
+      console.warn('[WebRTC] Duplicate SDP answer ignored');
+      return;
+    }
+
     console.log('[WebRTC] Applying SDP answer from server...');
 
+    const peerConnection = this.pc;
     const answer = new RTCSessionDescription({ type: 'answer', sdp });
-    await this.pc.setRemoteDescription(answer);
+    await peerConnection.setRemoteDescription(answer);
+    if (this.pc !== peerConnection || peerConnection.connectionState === 'closed') return;
 
     // Mark flag so future ICE candidates are added directly
     this._remoteDescriptionSet = true;
@@ -195,6 +209,7 @@ class WebRTCService {
 
     // Detach audio element to stop playback
     if (this.audioElement) {
+      this.audioElement.pause();
       this.audioElement.srcObject = null;
       this.audioElement = null;
     }
@@ -203,6 +218,9 @@ class WebRTCService {
     this.remoteStream = null;
     this._pendingCandidates = [];
     this._remoteDescriptionSet = false;
+    this.onRemoteStream = null;
+    this.onConnectionState = null;
+    this.onIceState = null;
 
     console.log('[WebRTC] Closed ✓');
   }
@@ -218,14 +236,16 @@ class WebRTCService {
      the event handlers it needs.
      ───────────────────────────────────────── */
   _createPeerConnection() {
-    this.pc = new RTCPeerConnection(ICE_CONFIG);
+    const peerConnection = new RTCPeerConnection(ICE_CONFIG);
+    this.pc = peerConnection;
     this._pendingCandidates = [];
     this._remoteDescriptionSet = false;
 
     /* ── Incoming audio track from bot ──
        Fires when the server's audio track arrives.
        We attach it to an <audio> element for autoplay. */
-    this.pc.ontrack = (event) => {
+    peerConnection.ontrack = (event) => {
+      if (peerConnection !== this.pc) return;
       const track = event.track;
       if (!track) return;
 
@@ -265,7 +285,8 @@ class WebRTCService {
     /* ── Our ICE candidates ready to send to server ──
        Browser gathered a network candidate → send it
        to server via WebSocket so it can reach us. */
-    this.pc.onicecandidate = (event) => {
+    peerConnection.onicecandidate = (event) => {
+      if (peerConnection !== this.pc) return;
       if (!event.candidate) return; // null = gathering complete
       console.log('[WebRTC] Local ICE candidate gathered, sending to server');
       wsService.send({
@@ -277,18 +298,22 @@ class WebRTCService {
     };
 
     /* ── Overall connection state (use for UI) ── */
-    this.pc.onconnectionstatechange = () => {
-      const state = this.pc.connectionState;
+    peerConnection.onconnectionstatechange = () => {
+      if (peerConnection !== this.pc) return;
+      const state = peerConnection.connectionState;
       console.log('[WebRTC] Connection state:', state);
       if (this.onConnectionState) this.onConnectionState(state);
     };
 
     /* ── ICE-specific state (useful for debugging) ── */
-    this.pc.oniceconnectionstatechange = () => {
-      const state = this.pc.iceConnectionState;
+    peerConnection.oniceconnectionstatechange = () => {
+      if (peerConnection !== this.pc) return;
+      const state = peerConnection.iceConnectionState;
       console.log('[WebRTC] ICE state:', state);
       if (this.onIceState) this.onIceState(state);
     };
+
+    return peerConnection;
   }
 
   /* ─────────────────────────────────────────
@@ -298,9 +323,9 @@ class WebRTCService {
      Adds the mic track to the peer connection so
      our voice is sent to the server/bot.
      ───────────────────────────────────────── */
-  async _getUserMedia() {
+  async _getUserMedia(peerConnection) {
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -310,9 +335,16 @@ class WebRTCService {
 
       console.log('[WebRTC] Microphone access granted ✓');
 
+      if (this.pc !== peerConnection || peerConnection.connectionState === 'closed') {
+        stream.getTracks().forEach((track) => track.stop());
+        throw new Error('[WebRTC] Microphone request completed after session cleanup');
+      }
+
+      this.localStream = stream;
+
       // Add mic tracks to the peer connection
       this.localStream.getTracks().forEach(track => {
-        this.pc.addTrack(track, this.localStream);
+        peerConnection.addTrack(track, this.localStream);
         console.log('[WebRTC] Added track:', track.kind);
       });
 
@@ -330,8 +362,10 @@ class WebRTCService {
      handleIceCandidate() and _flushPendingCandidates().
      ───────────────────────────────────────── */
   async _applyIceCandidate(candidate) {
+    const peerConnection = this.pc;
+    if (!peerConnection || peerConnection.connectionState === 'closed') return;
     try {
-      await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
       console.log('[WebRTC] ICE candidate applied');
     } catch (err) {
       console.error('[WebRTC] Failed to apply ICE candidate:', err);

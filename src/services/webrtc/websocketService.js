@@ -72,33 +72,43 @@ class WebSocketService {
      Usage:
        await wsService.waitForConnection();
      ───────────────────────────────────────── */
-  waitForConnection(timeoutMs = 10_000) {
+  waitForConnection(timeoutMs = 10_000, signal) {
     // Already open — resolve immediately
     if (this.socket?.readyState === WebSocket.OPEN) {
       return Promise.resolve();
     }
 
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      let settled = false;
+      let unsubscribe = () => {};
+      let onAbort = () => {};
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         unsubscribe();
-        reject(new Error('[WS] Connection timeout'));
+        signal?.removeEventListener('abort', onAbort);
+        callback(value);
+      };
+      const timer = setTimeout(() => {
+        finish(reject, new Error('[WS] Connection timeout'));
       }, timeoutMs);
 
       // Subscribe to status changes just for this promise
       const onStatus = (status) => {
         if (status === 'connected') {
-          clearTimeout(timer);
-          unsubscribe();
-          resolve();
+          finish(resolve);
         } else if (status === 'error') {
-          clearTimeout(timer);
-          unsubscribe();
-          reject(new Error('[WS] Connection failed'));
+          finish(reject, new Error('[WS] Connection failed'));
         }
       };
 
+      onAbort = () => finish(reject, new DOMException('Connection cancelled', 'AbortError'));
+
       // onStatus() returns an unsubscribe fn (see below)
-      const unsubscribe = this.onStatus(onStatus);
+      unsubscribe = this.onStatus(onStatus);
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener('abort', onAbort, { once: true });
     });
   }
 
@@ -238,7 +248,10 @@ class WebSocketService {
     }
 
     /* ── Socket opened ── */
-    this.socket.onopen = () => {
+    const socket = this.socket;
+
+    socket.onopen = () => {
+      if (socket !== this.socket) return;
       console.log('[WS] Connected ✓');
       this.isConnected = true;
       this.retryCount  = 0; // reset on success
@@ -246,18 +259,20 @@ class WebSocketService {
     };
 
     /* ── Message arrived ── */
-    this.socket.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (socket !== this.socket) return;
       try {
         const data = JSON.parse(event.data);
         console.log('[WS] ← Received:', data.type, data);
         this._dispatch(data);
-      } catch (err) {
+      } catch {
         console.warn('[WS] Could not parse message:', event.data);
       }
     };
 
     /* ── Socket closed ── */
-    this.socket.onclose = (event) => {
+    socket.onclose = (event) => {
+      if (socket !== this.socket && !this.manualClose) return;
       console.log(`[WS] Closed — code: ${event.code}, clean: ${event.wasClean}`);
       this.isConnected = false;
       this._notifyStatus('disconnected');
@@ -269,7 +284,8 @@ class WebSocketService {
     };
 
     /* ── Socket error ── */
-    this.socket.onerror = (err) => {
+    socket.onerror = (err) => {
+      if (socket !== this.socket) return;
       // Note: onclose always fires after onerror — retry is handled there
       console.error('[WS] Socket error:', err);
       this._notifyStatus('error');
@@ -290,7 +306,10 @@ class WebSocketService {
     // Call handlers registered for this specific type
     this.listeners[type]?.forEach(cb => {
       try {
-        cb(data);
+        const result = cb(data);
+        result?.catch?.((error) => {
+          console.error(`[WS] Async handler error for type "${type}":`, error);
+        });
       } catch (err) {
         console.error(`[WS] Handler error for type "${type}":`, err);
       }
@@ -299,7 +318,10 @@ class WebSocketService {
     // Call wildcard handlers (receives every message — useful for logging)
     this.listeners['*']?.forEach(cb => {
       try {
-        cb(data);
+        const result = cb(data);
+        result?.catch?.((error) => {
+          console.error('[WS] Async wildcard handler error:', error);
+        });
       } catch (err) {
         console.error('[WS] Wildcard handler error:', err);
       }
@@ -310,6 +332,7 @@ class WebSocketService {
      _scheduleRetry — exponential-ish backoff
      ───────────────────────────────────────── */
   _scheduleRetry() {
+    if (this.manualClose || this.retryTimer) return;
     if (this.retryCount >= MAX_RETRIES) {
       console.error(`[WS] Max retries (${MAX_RETRIES}) reached. Giving up.`);
       this._notifyStatus('error');
@@ -320,7 +343,10 @@ class WebSocketService {
     const delay = BASE_RETRY_DELAY_MS * this.retryCount; // 2s, 4s, 6s…
     console.log(`[WS] Retrying in ${delay / 1000}s... (${this.retryCount}/${MAX_RETRIES})`);
 
-    this.retryTimer = setTimeout(() => this._createSocket(), delay);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (!this.manualClose) this._createSocket();
+    }, delay);
   }
 
   /* ─────────────────────────────────────────

@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { useLogout, useCurrentUser, useUpdateAccount } from '../../hooks/useAuth';
+import { useLogout, useUpdateAccount } from '../../hooks/useAuth';
+import { useAuth } from '../../providers/AuthProvider';
+import { useTheme } from '../../providers/ThemeProvider';
 import Loader from '../../components/ui/Loader/Loader';
 import Input from '../../components/ui/Input/Input';
 import RangeSlider from '../../components/ui/RangeSlider/RangeSlider';
@@ -22,6 +24,8 @@ const UI = {
   saveChanges: 'Save Changes',
   editProfile: 'Edit Profile',
   account: 'Account',
+  appearance: 'Appearance',
+  darkMode: 'Dark Mode',
   signOut: 'Sign Out',
   signingOut: 'Signing out…',
   securelyEnd: 'Securely end your session',
@@ -80,20 +84,14 @@ const ViewField = ({ label, value }) => (
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { user, isLoading, refetch } = useCurrentUser();
+  const { user, isLoading } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const { logout } = useLogout();
   const { updateAccount, isLoading: saving } = useUpdateAccount();
 
   const [isEditing, setIsEditing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', age: 25 });
-
-  // ✅ Refetch on mount to get latest data
-  useEffect(() => {
-    if (typeof refetch === 'function') {
-      refetch();
-    }
-  }, []);
 
   useEffect(() => {
     if (!isLoading && !user) navigate('/login', { replace: true });
@@ -126,9 +124,6 @@ const Settings = () => {
     if (res.success) {
       toast.success(UI.profileUpdated);
       setIsEditing(false);
-      if (typeof refetch === 'function') {
-        refetch();
-      }
     } else {
       toast.error(res.error || UI.updateFailed);
     }
@@ -162,7 +157,7 @@ const Settings = () => {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-300 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-gray-500 transition-colors hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:text-gray-400 dark:hover:text-indigo-300"
           >
             <Icon name="arrowLeft" className="w-4 h-4" />
             {UI.back}
@@ -232,7 +227,10 @@ const Settings = () => {
                   />
                 </div>
                 <div className="flex justify-end gap-2.5 pt-1">
-                  <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>{UI.cancel}</Button>
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    setForm({ firstName: u.firstName || '', lastName: u.lastName || '', email: u.email || '', age: u.age || 25 });
+                    setIsEditing(false);
+                  }}>{UI.cancel}</Button>
                   <Button size="sm" loading={saving} onClick={handleSave}>{UI.saveChanges}</Button>
                 </div>
               </motion.div>
@@ -259,11 +257,32 @@ const Settings = () => {
           </AnimatePresence>
         </SectionCard>
 
+        <SectionCard icon="settings" title={UI.appearance}>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">{UI.darkMode}</p>
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{isDark ? 'On — dark mode' : 'Off — light mode'}</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isDark}
+              aria-label="Dark mode"
+              onClick={toggleTheme}
+              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${isDark ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-700'}`}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${isDark ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+        </SectionCard>
+
         {/* Account Section */}
         <SectionCard icon="lock" title={UI.account}>
           <button
+            type="button"
             onClick={handleLogout}
             disabled={loggingOut}
+            aria-busy={loggingOut || undefined}
             className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-xl border border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-white/3 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-500/8 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-500/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
           >
             {loggingOut ? (

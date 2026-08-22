@@ -1,37 +1,41 @@
 import { fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
-export const createBaseQueryWithReauth = (baseUrl) => {
-    const baseQuery = fetchBaseQuery({
-        baseUrl: baseUrl || import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
-        credentials: 'include',
-    });
+export const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-    const baseQueryWithReauth = async (args, api, extraOptions) => {
-        let result = await baseQuery(args, api, extraOptions);
-        // If unauthorized, try to refresh token
-        if (result.error?.status === 401) {
-            // console.log('🔵 Token expired, attempting refresh...');
+// API slices have independent base-query instances. Keeping refresh promises in
+// module scope makes concurrent 401 responses share one refresh request.
+const refreshRequests = new Map();
 
-            // Try to refresh the token
-            const refreshResult = await baseQuery(
-                { url: '/v1/users/refresh-token', method: 'POST',  credentials: 'include' },
-                api,
-                extraOptions
-            );
+export const createBaseQueryWithReauth = (baseUrl = apiBaseUrl) => {
+  const baseQuery = fetchBaseQuery({ baseUrl, credentials: 'include' });
 
-            if (refreshResult.data) {
-                // console.log('🟢 Token refreshed successfully');
-                // Retry the original request
-                result = await baseQuery(args, api, extraOptions);
-            } else {
-                // console.log('🔴 Refresh failed, redirecting to login');
-                // If refresh fails, clear user and redirect to login
-                // You can dispatch a logout action here if needed
-            }
-        }
+  return async (args, api, extraOptions = {}) => {
+    let result = await baseQuery(args, api, extraOptions);
+    const requestUrl = typeof args === 'string' ? args : args?.url;
 
-        return result;
-    };
+    if (
+      result.error?.status !== 401 ||
+      requestUrl === '/v1/users/refresh-token' ||
+      extraOptions.skipReauth
+    ) {
+      return result;
+    }
 
-    return baseQueryWithReauth;
+    let refreshRequest = refreshRequests.get(baseUrl);
+    if (!refreshRequest) {
+      refreshRequest = baseQuery(
+        { url: '/v1/users/refresh-token', method: 'POST' },
+        api,
+        { ...extraOptions, skipReauth: true }
+      ).finally(() => refreshRequests.delete(baseUrl));
+      refreshRequests.set(baseUrl, refreshRequest);
+    }
+
+    const refreshResult = await refreshRequest;
+    if (refreshResult.data) {
+      result = await baseQuery(args, api, extraOptions);
+    }
+
+    return result;
+  };
 };

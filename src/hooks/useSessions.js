@@ -1,5 +1,5 @@
 import { useDispatch } from 'react-redux';
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   useGetUserSessionsQuery,
   useGetSessionByIdQuery,
@@ -17,7 +17,10 @@ export const useUserSessions = (initialPage = 1, limit = 10) => {
   const { user } = useAuth();
 
   const { data, isLoading, isFetching, error, refetch } =
-    useGetUserSessionsQuery({ page, limit }, { skip: !user });
+    useGetUserSessionsQuery(
+      { page, limit },
+      { skip: !user, refetchOnFocus: true }
+    );
 
   const sessions = data?.sessions ?? [];
   const pagination = data?.pagination;
@@ -42,98 +45,77 @@ export const useUserSessions = (initialPage = 1, limit = 10) => {
 
 export const usePendingSessionPoller = ({ connectionState, sessionId }) => {
   const dispatch = useDispatch();
-  const intervalRef = useRef(null);
-  const initialDelay = useRef(null);
-  const giveUpRef = useRef(null);
-  const doneRef = useRef(false);
 
   useEffect(() => {
-    if (connectionState !== 'ended') return;
-    if (doneRef.current) return;
-    if (!sessionId) return;
+    if (connectionState !== 'ended' || !sessionId) return undefined;
 
-    localStorage.setItem('pendingSessionId', sessionId);
-    localStorage.setItem('pendingSessionStarted', Date.now().toString());
+    let isActive = true;
+    let isPolling = false;
+    let intervalId;
+    let initialDelayId;
+    let giveUpId;
 
-    console.log('[PendingSessionPoller] 🚀 Starting polling for session:', sessionId);
+    const stop = () => {
+      clearInterval(intervalId);
+      clearTimeout(initialDelayId);
+      clearTimeout(giveUpId);
+    };
+
+    const finish = () => {
+      isActive = false;
+      stop();
+    };
 
     const poll = async () => {
+      if (!isActive || isPolling) return;
+      isPolling = true;
+
       try {
         const result = await dispatch(
-          sessionApi.endpoints.getSessionById.initiate(sessionId, { forceRefetch: true })
+          sessionApi.endpoints.getSessionById.initiate(sessionId, {
+            forceRefetch: true,
+            subscribe: false,
+          })
         );
 
+        if (!isActive) return;
+
         if (result?.error) {
-          console.log('[PendingSessionPoller] Session not found yet, continuing...');
           return;
         }
 
         const session = result?.data;
         if (!session) return;
 
-        console.log('[PendingSessionPoller] Session status:', session.status, 'Title:', session.title);
-
-        // ✅ Add/update session in cache
-        dispatch(
-          sessionApi.util.updateQueryData('getUserSessions', undefined, (draft) => {
-            if (!draft?.sessions) return;
-
-            // ✅ More reliable check
-            const alreadyThere = draft.sessions.some((s) => String(s.id) === String(session.id));
-            if (!alreadyThere) {
-              draft.sessions.unshift({ ...session, _isNew: true });
-            } else {
-              // ✅ If exists, update it instead of adding duplicate
-              const index = draft.sessions.findIndex((s) => String(s.id) === String(session.id));
-              if (index !== -1) {
-                draft.sessions[index] = { ...session, _isNew: false };
-              }
-            }
-          })
-        );
-
-        // ✅ If session is ENDED, stop polling
         if (session.status === 'ended') {
-          console.log('[PendingSessionPoller] ✅ Session ended! Final title:', session.title);
-
-          localStorage.removeItem('pendingSessionId');
-          localStorage.removeItem('pendingSessionStarted');
-
-          clearInterval(intervalRef.current);
-          clearTimeout(giveUpRef.current);
-          intervalRef.current = null;
-          giveUpRef.current = null;
-          doneRef.current = true;
-        } else {
-          console.log('[PendingSessionPoller] Session still active, continuing polling...');
+          // Let active subscribers refetch their own pagination variant and
+          // global stats instead of maintaining a second, partial list cache.
+          dispatch(
+            sessionApi.util.invalidateTags([
+              { type: 'Sessions', id: 'LIST' },
+              { type: 'SessionStats', id: 'GLOBAL' },
+            ])
+          );
+          finish();
         }
-      } catch (error) {
-        console.log('[PendingSessionPoller] Error:', error.message);
+      } catch {
+        // A not-yet-persisted session is expected while the server finalizes it.
+      } finally {
+        isPolling = false;
       }
     };
 
-    initialDelay.current = setTimeout(() => {
+    initialDelayId = setTimeout(() => {
       poll();
-      intervalRef.current = setInterval(poll, 4000);
+      intervalId = setInterval(poll, 4000);
     }, 2000);
 
-    giveUpRef.current = setTimeout(() => {
-      console.log('[PendingSessionPoller] ⏰ Giving up after 30s');
-      localStorage.removeItem('pendingSessionId');
-      localStorage.removeItem('pendingSessionStarted');
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    giveUpId = setTimeout(() => {
+      if (isActive) finish();
     }, 30_000);
 
     return () => {
-      if (doneRef.current) {
-        clearTimeout(initialDelay.current);
-        clearInterval(intervalRef.current);
-        clearTimeout(giveUpRef.current);
-        initialDelay.current = null;
-        intervalRef.current = null;
-        giveUpRef.current = null;
-      }
+      finish();
     };
   }, [connectionState, sessionId, dispatch]);
 };
@@ -144,7 +126,7 @@ export const useSession = (sessionId) => {
 
   const { data: session, isLoading, error, refetch } = useGetSessionByIdQuery(
     sessionId,
-    { skip: !sessionId || !user, refetchOnMountOrArgChange: true, refetchOnFocus: true, }
+    { skip: !sessionId || !user, refetchOnFocus: true }
   );
 
   return {

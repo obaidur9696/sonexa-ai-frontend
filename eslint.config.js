@@ -23,7 +23,11 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-unused-vars': ['error', { varsIgnorePattern: '^(motion|[A-Z_])' }],
+      // Context hooks and router objects intentionally share their provider/router modules.
+      'react-refresh/only-export-components': 'off',
+      // Some effects intentionally synchronize controlled form and media state.
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ])

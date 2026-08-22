@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useCurrentUser } from '../../hooks/useAuth';
+import { useAuth } from '../../providers/AuthProvider';
 import Loader from '../../components/ui/Loader/Loader';
 import Button from '../../components/ui/Button/Button';
 
@@ -101,14 +101,7 @@ const Field = ({ label, value }) => (
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { user, isLoading, refetch } = useCurrentUser();
-
-  // ✅ Refetch on mount to get latest data
-  useEffect(() => {
-    if (typeof refetch === 'function') {
-      refetch();
-    }
-  }, []);
+  const { user, isLoading } = useAuth();
 
   useEffect(() => {
     if (!isLoading && !user) navigate('/login', { replace: true });
@@ -144,7 +137,7 @@ const Profile = () => {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-300 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-gray-500 transition-colors hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:text-gray-400 dark:hover:text-indigo-300"
           >
             <Icon name="arrowLeft" className="w-4 h-4" />
             {UI.back}
@@ -253,8 +246,17 @@ const Profile = () => {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25, duration: 0.4 }}
-          className="flex flex-col sm:flex-row gap-3 justify-center"
+          className="flex flex-col justify-center gap-3 sm:flex-row"
         >
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => navigate('/settings')}
+            className="flex items-center gap-2"
+          >
+            <Icon name="user" className="w-4 h-4" />
+            Manage profile
+          </Button>
           <Button
             variant="outline"
             size="md"

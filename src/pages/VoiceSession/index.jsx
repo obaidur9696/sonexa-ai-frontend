@@ -3,6 +3,7 @@
    Main voice session page - FIXED (No outer scrollbar)
    ============================================================ */
 
+import { useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 
@@ -10,7 +11,6 @@ import { useVoiceConnection } from '../../hooks/useVoiceConnection';
 import VoiceHeader from '../../components/voice/VoiceHeader';
 import { VoiceScreens } from '../../components/voice/VoiceScreens';
 import VoiceControls from '../../components/voice/VoiceControls';
-import BotAudioPlayer from '../../components/voice/BotAudioPlayer';
 import FailedOverlay from '../../components/voice/FailedOverlay';
 import SessionEndedOverlay from '../../components/voice/SessionEndedOverlay';
 import { useAuth } from '../../providers/AuthProvider';
@@ -68,35 +68,19 @@ const ControlsBar = ({ isMuted, onToggleMute, onLeave }) => (
 /* ══════════════════════════════════════════════════════════════
    MAIN PAGE COMPONENT
    ══════════════════════════════════════════════════════════════ */
-const VoiceSession = () => {
+const ActiveVoiceSession = ({ formData, user }) => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { user } = useAuth();
-
-  const formData = location.state?.formData ?? {};
 
   // ✅ SMALL VALIDATION - Show FailedOverlay if no formData
-  if (Object.keys(formData).length === 0) {
-    return (
-      <FailedOverlay
-        onGoHome={() => navigate('/')}
-        onRetry={() => window.location.reload()}
-        errorMessage="Invalid session access. Please start a session from the home page."
-        autoCloseDelay={12000}
-      />
-    );
-  }
-
-  const enrichedFormData = {
+  const enrichedFormData = useMemo(() => ({
     ...formData,
     userId: user?.data?._id || null
-  };
+  }), [formData, user]);
 
   const {
     connectionState,
     sessionId,
     isMuted,
-    remoteStream,
     isFailed,
     errorMessage,
     remainingSeconds,
@@ -111,13 +95,11 @@ const VoiceSession = () => {
 
   usePendingSessionPoller({ connectionState, sessionId, });
 
-  const handleGoHome = () => {
-    navigate('/');
-  };
+  const handleGoHome = useCallback(() => navigate('/'), [navigate]);
+  const handleRetry = useCallback(() => window.location.reload(), []);
+  const handleNewSession = useCallback(() => navigate('/'), [navigate]);
 
-  const handleLeave = () => {
-    leaveSession();
-  };
+  const handleLeave = useCallback(() => leaveSession(), [leaveSession]);
 
   const showControls =
     connectionState === 'connecting' ||
@@ -126,7 +108,7 @@ const VoiceSession = () => {
 
   return (
     // ✅ CRITICAL: h-screen + overflow-hidden → NO outer scrollbar
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-[#09090b] overflow-hidden">
+    <main className="h-screen flex flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#09090b] dark:text-gray-100" aria-label="Voice conversation session">
 
       <AmbientBackground />
 
@@ -139,7 +121,7 @@ const VoiceSession = () => {
       </div>
 
       {/* ✅ Middle area - ONLY this can scroll */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <div className="h-full w-full">
           <AnimatePresence mode="wait">
             {connectionState === "connected" ? (
@@ -164,14 +146,12 @@ const VoiceSession = () => {
         </div>
       )}
 
-      <BotAudioPlayer remoteStream={remoteStream} />
-
       <AnimatePresence>
         {isFailed && (
           <FailedOverlay
             key="failed-overlay"
             onGoHome={handleGoHome}
-            onRetry={() => window.location.reload()}
+            onRetry={handleRetry}
             errorMessage={errorMessage}
             autoCloseDelay={12000}  // ← 12 seconds
           />
@@ -182,9 +162,7 @@ const VoiceSession = () => {
           <SessionEndedOverlay
             key="ended-overlay"
             onHome={handleGoHome}
-            onRetry={() => {
-              navigate('/');
-            }}
+            onRetry={handleNewSession}
             title="Session Complete"
             message={sessionExpireMessage || "Your conversation has been saved. Thank you for using Sonexa AI."}
             autoCloseDelay={10000}
@@ -192,8 +170,28 @@ const VoiceSession = () => {
         )}
       </AnimatePresence>
 
-    </div>
+    </main>
   );
+};
+
+const VoiceSession = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+  const formData = useMemo(() => location.state?.formData ?? null, [location.state]);
+
+  if (!formData || Object.keys(formData).length === 0) {
+    return (
+      <FailedOverlay
+        onGoHome={() => navigate('/')}
+        onRetry={() => window.location.reload()}
+        errorMessage="Invalid session access. Please start a session from the home page."
+        autoCloseDelay={12000}
+      />
+    );
+  }
+
+  return <ActiveVoiceSession formData={formData} user={user} />;
 };
 
 export default VoiceSession;

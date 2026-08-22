@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import SidebarHeader from './SidebarHeader';
 import NewChatButton from './NewChatButton';
 import HistoryList   from './HistoryList';
@@ -28,25 +29,76 @@ const SidebarContent = ({ isOpen, onToggle, showToggle, onClose }) => (
 );
 
 const Sidebar = ({ isMobile, isOpen, mobileOpen, onToggleDesktop, onMobileClose }) => {
+  const mobilePanelRef = useRef(null);
+
+  const handleMobilePanelKeyDown = (event) => {
+    if (event.key !== 'Tab') return;
+    const focusable = mobilePanelRef.current?.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    if (!focusable?.length) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (document.activeElement === mobilePanelRef.current) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  useEffect(() => {
+    if (!isMobile || !mobileOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const frame = window.requestAnimationFrame(() => mobilePanelRef.current?.focus());
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onMobileClose();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobile, mobileOpen, onMobileClose]);
 
   if (isMobile) {
     if (!mobileOpen) return null;
     return (
       <>
-        <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 animate-fade-in"
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close sidebar"
+          className="fixed inset-0 z-40 cursor-default bg-black/40 backdrop-blur-sm animate-fade-in"
           onClick={onMobileClose}
         />
-        <div className="fixed left-0 top-0 h-full w-64 z-50 bg-white dark:bg-gray-950 border-r border-gray-100 dark:border-white/6 shadow-xl animate-slide-left overflow-visible">
-          <SidebarContent isOpen={true} onClose={onMobileClose} showToggle={false} />
-        </div>
+        <aside
+          ref={mobilePanelRef}
+          id="mobile-sidebar"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Sidebar navigation"
+          tabIndex={-1}
+          onKeyDown={handleMobilePanelKeyDown}
+          className="fixed left-0 top-0 z-50 h-full w-64 overflow-visible border-r border-gray-100 bg-white shadow-xl outline-none animate-slide-left dark:border-white/6 dark:bg-gray-950"
+        >
+          <SidebarContent isOpen={true} onClose={onMobileClose} showToggle />
+        </aside>
       </>
     );
   }
 
   return (
-    <div
-      className="fixed left-0 top-0 h-full z-40 bg-white dark:bg-gray-950 border-r border-gray-100 dark:border-white/6 flex flex-col transition-all duration-300 ease-smooth overflow-visible"
+    <aside
+      aria-label="Sidebar navigation"
+      className="fixed left-0 top-0 z-40 flex h-full flex-col overflow-visible border-r border-gray-100 bg-white transition-all duration-300 ease-smooth dark:border-white/6 dark:bg-gray-950"
       style={{ width: isOpen ? '16rem' : '4.5rem' }}
     >
       <SidebarContent
@@ -54,7 +106,7 @@ const Sidebar = ({ isMobile, isOpen, mobileOpen, onToggleDesktop, onMobileClose 
         onToggle={onToggleDesktop}
         showToggle={true}
       />
-    </div>
+    </aside>
   );
 };
 

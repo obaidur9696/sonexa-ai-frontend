@@ -1,24 +1,17 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 import { useCurrentUser } from '../hooks/useAuth';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const { user, isLoading, error, refetch, isAuthenticated } = useCurrentUser();
-
-  const updateUser = () => {
-    if (typeof refetch === 'function') {
-      refetch();
-    }
-  }
-  const clearUser = () => {
-    if (typeof refetch === 'function') {
-      refetch();
-    }
-  }
+  const { user, isLoading, error, isAuthenticated } = useCurrentUser();
+  const value = useMemo(
+    () => ({ user, isLoading, error, isAuthenticated }),
+    [user, isLoading, error, isAuthenticated]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, error, isAuthenticated, updateUser, clearUser }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
@@ -29,4 +22,3 @@ export const useAuth = () => {
   if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
-

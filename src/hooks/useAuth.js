@@ -7,6 +7,8 @@ import {
   useUpdateAccountMutation,
   authApi,
 } from '../store/api/authApi';
+import { sessionApi } from '../store/api/sessionApi';
+import { projectApi } from '../store/api/projectApi';
 
 /* ─── Login ─────────────────────────────────── */
 export const useLogin = () => {
@@ -48,12 +50,16 @@ export const useLogout = () => {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-      dispatch(authApi.util.invalidateTags(['User']));
       dispatch(authApi.util.resetApiState());
+      dispatch(sessionApi.util.resetApiState());
+      dispatch(projectApi.util.resetApiState());
       return { success: true };
-    } catch (err) {
-      dispatch(authApi.util.invalidateTags(['User']));
+    } catch {
+      // The local UI must not retain another account's cached data when a
+      // network failure prevents the server-side logout response.
       dispatch(authApi.util.resetApiState());
+      dispatch(sessionApi.util.resetApiState());
+      dispatch(projectApi.util.resetApiState());
       return { success: false };
     }
   };
@@ -63,8 +69,11 @@ export const useLogout = () => {
 
 /* ─── Current User ───────────────────────────── */
 export const useCurrentUser = () => {
-  const { data: user, isLoading, error, refetch } = useGetCurrentUserQuery();
-  return { user, isLoading, error, refetch, isAuthenticated: !!user };
+  const { data, isLoading, isFetching, isError, error } = useGetCurrentUserQuery();
+  // A rejected refresh can leave RTK Query's previous fulfilled value in the
+  // cache. Never expose that stale user as an authenticated session.
+  const user = isError ? undefined : data;
+  return { user, isLoading: isLoading || isFetching, error, isAuthenticated: Boolean(user) };
 };
 
 /* ─── Update Account ─────────────────────────── */

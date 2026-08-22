@@ -14,7 +14,8 @@ const RangeSlider = forwardRef(({
   className = '',
   ...rest
 }, ref) => {
-  const pct = ((value - min) / (max - min)) * 100;
+  const safeValue = Number.isFinite(Number(value)) ? Number(value) : min;
+  const pct = max === min ? 0 : Math.min(100, Math.max(0, ((safeValue - min) / (max - min)) * 100));
 
   return (
     <div className={`${fullWidth ? 'w-full' : 'w-64'} ${className}`}>
@@ -29,7 +30,7 @@ const RangeSlider = forwardRef(({
         </div>
       )}
 
-      <div className="relative h-5 flex items-center">
+      <div className={`relative flex h-5 items-center rounded-full focus-within:ring-4 focus-within:ring-indigo-500/15 ${disabled ? 'opacity-50' : ''}`}>
         {/* Track background */}
         <div className="absolute inset-x-0 h-1.5 rounded-full bg-gray-200 dark:bg-white/10" />
 
@@ -52,12 +53,13 @@ const RangeSlider = forwardRef(({
         <input
           ref={ref}
           type="range"
-          value={value}
+          value={safeValue}
           onChange={onChange}
           min={min}
           max={max}
           step={step}
           disabled={disabled}
+          aria-label={label || 'Value'}
           className="absolute inset-x-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
           {...rest}
         />

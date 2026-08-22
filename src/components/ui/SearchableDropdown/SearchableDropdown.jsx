@@ -1,136 +1,193 @@
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import ReactCountryFlag from 'react-country-flag';
+import {
+  CheckIcon,
+  getSelectOptionClasses,
+  getSelectTriggerClasses,
+  SelectChevron,
+  selectMenuClasses,
+} from '../Select/selectStyles';
 
 const SearchableDropdown = ({
-  options,
+  options = [],
   value,
   onChange,
   placeholder = 'Search...',
   label,
   error,
-  disabled  = false,
+  disabled = false,
   fullWidth = false,
   className = '',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const ref = useRef(null);
-  const inputRef = useRef(null);
-
-  const filtered = options.filter(o =>
-    o.label.toLowerCase().includes(search.toLowerCase())
+  const rootRef = useRef(null);
+  const triggerRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const optionRefs = useRef([]);
+  const id = useId();
+  const labelId = `${id}-label`;
+  const listId = `${id}-listbox`;
+  const errorId = `${id}-error`;
+  const selected = options.find((option) => option.value === value);
+  const filteredOptions = useMemo(
+    () => options.filter((option) => option.label?.toLowerCase().includes(search.toLowerCase())),
+    [options, search]
   );
-  const selected = options.find(o => o.value === value);
+
+  const closeDropdown = (restoreFocus = false) => {
+    setIsOpen(false);
+    setSearch('');
+    if (restoreFocus) window.requestAnimationFrame(() => triggerRef.current?.focus());
+  };
+
+  const openDropdown = () => {
+    if (!disabled) setIsOpen(true);
+  };
+
+  const selectOption = (option) => {
+    onChange(option);
+    closeDropdown(true);
+  };
+
+  const focusOption = (index) => {
+    window.requestAnimationFrame(() => optionRefs.current[index]?.focus());
+  };
 
   useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) {
-        setIsOpen(false);
-        setSearch('');
-      }
+    const handlePointerDown = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) closeDropdown();
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, []);
 
   useEffect(() => {
-    if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
+    if (!isOpen) return undefined;
+    const frame = window.requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
   }, [isOpen]);
 
-  return (
-    <div ref={ref} className={`relative ${fullWidth ? 'w-full' : 'w-64'} ${className}`}>
-      {label && <label className="field-label mb-1.5 block">{label}</label>}
+  const handleSearchKeyDown = (event) => {
+    if (event.key === 'ArrowDown' && filteredOptions.length) {
+      event.preventDefault();
+      focusOption(0);
+    } else if (event.key === 'ArrowUp' && filteredOptions.length) {
+      event.preventDefault();
+      focusOption(filteredOptions.length - 1);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeDropdown(true);
+    }
+  };
 
-      {/* Trigger */}
+  const handleOptionKeyDown = (event, index, option) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusOption((index + 1) % filteredOptions.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (index === 0) searchInputRef.current?.focus();
+      else focusOption(index - 1);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      focusOption(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      focusOption(filteredOptions.length - 1);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeDropdown(true);
+    } else if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+      selectOption(option);
+    }
+  };
+
+  return (
+    <div ref={rootRef} className={`relative ${fullWidth ? 'w-full' : 'w-64'} ${className}`}>
+      {label && <span id={labelId} className="field-label mb-1.5 block">{label}</span>}
+
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
-        onClick={() => !disabled && setIsOpen(o => !o)}
-        className={[
-          'input w-full flex items-center justify-between gap-2 text-left cursor-pointer',
-          error    ? 'input-error' : '',
-          disabled ? 'opacity-50 cursor-not-allowed' : '',
-        ].filter(Boolean).join(' ')}
-        style={{ paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
+        onClick={() => (isOpen ? closeDropdown() : openDropdown())}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            openDropdown();
+          }
+        }}
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        aria-controls={isOpen ? listId : undefined}
+        aria-labelledby={label ? labelId : undefined}
+        aria-describedby={error ? errorId : undefined}
+        aria-invalid={Boolean(error) || undefined}
+        className={getSelectTriggerClasses({ error, disabled })}
       >
         {selected ? (
-          <span className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
-            {selected.countryCode && (
-              <ReactCountryFlag countryCode={selected.countryCode} svg style={{ width: 18, height: 18, borderRadius: 2 }} />
-            )}
-            {selected.label}
+          <span className="flex min-w-0 items-center gap-2 text-gray-900 dark:text-gray-100">
+            {selected.countryCode && <ReactCountryFlag countryCode={selected.countryCode} svg style={{ width: 18, height: 18, borderRadius: 2 }} />}
+            <span className="truncate">{selected.label}</span>
           </span>
         ) : (
-          <span className="text-gray-400 dark:text-gray-500">{placeholder}</span>
+          <span className="truncate text-gray-400 dark:text-gray-500">{placeholder}</span>
         )}
-        <svg
-          className={`w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <SelectChevron open={isOpen} />
       </button>
 
-      {/* Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-xl shadow-lg dark:shadow-dark-lg overflow-hidden animate-scale-in origin-top">
-
-          {/* Search bar - FIXED VERSION */}
-          <div className="p-2 border-b border-gray-100 dark:border-white/6">
+        <div id={listId} role="listbox" aria-labelledby={label ? labelId : undefined} className={selectMenuClasses}>
+          <div className="border-b border-gray-100 p-2 dark:border-white/6">
             <div className="relative">
-              {/* Search Icon */}
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              
-              {/* Input with proper padding */}
+              <svg aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 my-auto h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
               <input
-                ref={inputRef}
+                ref={searchInputRef}
                 type="text"
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 placeholder="Search..."
-                className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                aria-label={`Search ${label || 'options'}`}
+                className="input w-full text-sm"
+                style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem', paddingLeft: '2.25rem', paddingRight: '0.75rem' }}
               />
             </div>
           </div>
 
-          {/* Options */}
           <div className="max-h-52 overflow-y-auto py-1">
-            {filtered.length > 0 ? filtered.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => { onChange(opt); setIsOpen(false); setSearch(''); }}
-                className={[
-                  'w-full px-3.5 py-2.5 text-sm text-left flex items-center gap-2.5 transition-colors duration-100',
-                  opt.value === value
-                    ? 'bg-indigo-50 dark:bg-indigo-500/12 text-indigo-700 dark:text-indigo-300 font-medium'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5',
-                ].join(' ')}
-              >
-                {opt.countryCode && (
-                  <ReactCountryFlag countryCode={opt.countryCode} svg style={{ width: 16, height: 16, borderRadius: 2, shrink: 0 }} />
-                )}
-                {opt.label}
-                {opt.value === value && (
-                  <svg className="w-3.5 h-3.5 ml-auto text-indigo-600 dark:text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" />
-                  </svg>
-                )}
-              </button>
-            )) : (
-              <div className="px-4 py-6 text-sm text-center text-gray-400 dark:text-gray-500">
-                No results found
-              </div>
+            {filteredOptions.length ? filteredOptions.map((option, index) => {
+              const isSelected = option.value === value;
+
+              return (
+                <button
+                  key={option.value}
+                  ref={(element) => { optionRefs.current[index] = element; }}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  onClick={() => selectOption(option)}
+                  onKeyDown={(event) => handleOptionKeyDown(event, index, option)}
+                  className={`flex items-center gap-2.5 ${getSelectOptionClasses(isSelected)}`}
+                >
+                  {option.countryCode && <ReactCountryFlag countryCode={option.countryCode} svg style={{ width: 16, height: 16, borderRadius: 2, flexShrink: 0 }} />}
+                  <span className="min-w-0 flex-1 whitespace-normal break-words">{option.label}</span>
+                  {isSelected && <span className="ml-auto shrink-0"><CheckIcon /></span>}
+                </button>
+              );
+            }) : (
+              <p className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">No results found</p>
             )}
           </div>
         </div>
       )}
 
-      {error && <p className="field-error mt-1">{error}</p>}
+      {error && <p id={errorId} className="field-error mt-1">{error}</p>}
     </div>
   );
 };

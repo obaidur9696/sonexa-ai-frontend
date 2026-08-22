@@ -212,23 +212,7 @@ const BotAvatar = memo(() => (
    ══════════════════════════════════════════════════════════════ */
 const BotText = memo(({ text, isStreaming, knownWordCount }) => {
   const words = text ? text.split(/\s+/).filter(Boolean) : [];
-  const prevCharCount = useRef(0);
   
-  // Track total characters shown so far
-  useEffect(() => {
-    if (text) {
-      prevCharCount.current = text.length;
-    }
-  }, [text]);
-  
-  const getCharCountBeforeWord = (wordIndex) => {
-    let count = 0;
-    for (let i = 0; i < wordIndex; i++) {
-      count += words[i].length + 1;
-    }
-    return count;
-  };
-
   return (
     <p style={{ 
       margin: 0, 
@@ -240,15 +224,13 @@ const BotText = memo(({ text, isStreaming, knownWordCount }) => {
       wordBreak: 'break-word',
     }}>
       {words.map((w, i) => {
-        const charStart = getCharCountBeforeWord(i);
         const isNewWord = i >= knownWordCount;
         
         return (
           <span key={i} style={{ display: 'inline', whiteSpace: 'pre-wrap' }}>
             {w.split('').map((char, j) => {
-              const globalCharIndex = charStart + j;
-              const shouldAnimate = isNewWord && globalCharIndex >= (prevCharCount.current || 0);
-              const delay = shouldAnimate ? (globalCharIndex - (prevCharCount.current || 0)) * 12 : 0;
+              const shouldAnimate = isStreaming && isNewWord;
+              const delay = shouldAnimate ? j * 12 : 0;
               
               return (
                 <span
@@ -279,13 +261,8 @@ const BotText = memo(({ text, isStreaming, knownWordCount }) => {
    ══════════════════════════════════════════════════════════════ */
 const MessageBubble = memo(({ message, userTurnIndex }) => {
   const isUser = message.sender === 'user';
-  const prevWordCount = useRef(0);
   const currentWordCount = message.text ? message.text.split(/\s+/).filter(Boolean).length : 0;
-  const knownWordCount = prevWordCount.current;
-
-  useEffect(() => { 
-    prevWordCount.current = currentWordCount; 
-  }, [currentWordCount]);
+  const knownWordCount = message.isStreaming ? Math.max(0, currentWordCount - 1) : currentWordCount;
 
   /* ── User bubble (right) ── */
   if (isUser) {
@@ -514,6 +491,9 @@ const MessageList = ({ messages = [] }) => {
   const scrollRef = useRef(null);
   const [showBtn, setShowBtn] = useState(false);
   const isUserScrolling = useRef(false);
+  const scrollIdleTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(scrollIdleTimerRef.current), []);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -533,12 +513,12 @@ const MessageList = ({ messages = [] }) => {
     if (!el) return;
     
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    setShowBtn(!atBottom);
+    setShowBtn((current) => current === !atBottom ? current : !atBottom);
     
     // Detect user scrolling
     isUserScrolling.current = true;
-    clearTimeout(window._scrollTimeout);
-    window._scrollTimeout = setTimeout(() => {
+    clearTimeout(scrollIdleTimerRef.current);
+    scrollIdleTimerRef.current = setTimeout(() => {
       isUserScrolling.current = false;
     }, 3000);
   }, []);

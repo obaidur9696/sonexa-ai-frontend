@@ -651,12 +651,16 @@ const MessageBubble = ({ message, index, t, locale }) => {
 // ── Copy Button with Check Animation ──
 const CopyButton = ({ textToCopy }) => {
   const [copied, setCopied] = useState(false);
+  const resetTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(resetTimerRef.current), []);
 
   const handleCopy = () => {
     if (textToCopy) {
       navigator.clipboard?.writeText(textToCopy);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -675,19 +679,10 @@ const CopyButton = ({ textToCopy }) => {
 const SessionDetail = () => {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { session, isLoading, error, refetch } = useSession(sessionId);
+  const { session, isLoading, error } = useSession(sessionId);
   const [conversationOpen, setConversationOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const conversationRef = useRef(null);
-  // ✅ Refetch on mount to get fresh data
-  useEffect(() => {
-    if (sessionId) {
-      if (typeof refetch === 'function') {
-        refetch();
-      }
-    }
-  }, [sessionId, refetch]);
-
   const report = session?.insights;
   const insightReady = report?.analysisStatus?.completed === true;
   const languageCode = String(report?.languages?.primary || session?.preferences?.language || 'en').toLowerCase();
@@ -695,9 +690,9 @@ const SessionDetail = () => {
   const locale = languageCode;
 
   useEffect(() => {
-    if (conversationOpen && session?.messages?.length) {
-      window.setTimeout(() => conversationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-    }
+    if (!conversationOpen || !session?.messages?.length) return undefined;
+    const timer = window.setTimeout(() => conversationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    return () => window.clearTimeout(timer);
   }, [conversationOpen, session?.messages?.length]);
 
   const conversationMetrics = useMemo(() => {
@@ -770,7 +765,7 @@ const SessionDetail = () => {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-300 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 rounded-lg text-sm font-medium text-gray-500 transition-colors hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:text-gray-400 dark:hover:text-indigo-300"
           >
             <Icon name="arrowLeft" className="w-4 h-4" />
             {t.back}
@@ -869,7 +864,8 @@ const SessionDetail = () => {
             type="button"
             onClick={() => setConversationOpen((open) => !open)}
             aria-expanded={conversationOpen}
-            className="w-full p-5 sm:px-6 sm:py-5 flex items-center justify-between gap-4 text-left hover:bg-gray-50/70 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
+            aria-controls="session-conversation"
+            className="w-full p-5 sm:px-6 sm:py-5 flex items-center justify-between gap-4 text-left transition-colors hover:bg-gray-50/70 focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-indigo-500 dark:hover:bg-white/[0.02]"
           >
             <span className="flex items-center gap-3 min-w-0">
               <span className="w-10 h-10 rounded-xl bg-indigo-500/10 dark:bg-indigo-400/10 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0">
@@ -888,7 +884,7 @@ const SessionDetail = () => {
 
           <AnimatePresence initial={false}>
             {conversationOpen && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="overflow-hidden">
+              <motion.div id="session-conversation" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="overflow-hidden">
                 <div className="border-t border-gray-100 dark:border-white/10 px-5 py-6 sm:px-7 space-y-5">
                   {session.messages?.map((message, index) => (
                     <MessageBubble key={`${message.timestamp}-${index}`} message={message} index={index} t={t} locale={locale} />
@@ -905,13 +901,13 @@ const SessionDetail = () => {
 
         {/* Everything below is metadata not already shown above: end time, full language list, session id. */}
         <section className="mb-3">
-          <button type="button" onClick={() => setDetailsOpen((open) => !open)} aria-expanded={detailsOpen} className="w-full flex items-center justify-between gap-4 py-3 text-sm text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-300 transition-colors cursor-pointer">
+          <button type="button" onClick={() => setDetailsOpen((open) => !open)} aria-expanded={detailsOpen} aria-controls="session-metadata" className="w-full flex items-center justify-between gap-4 rounded-lg py-3 text-sm text-gray-500 transition-colors hover:text-indigo-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:text-gray-400 dark:hover:text-indigo-300">
             <span className="font-medium">{t.sessionDetails}</span>
             <Icon name="chevronDown" className={`w-4 h-4 transition-transform ${detailsOpen ? 'rotate-180' : ''}`} />
           </button>
           <AnimatePresence initial={false}>
             {detailsOpen && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.24 }} className="overflow-hidden">
+              <motion.div id="session-metadata" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.24 }} className="overflow-hidden">
                 <div className="surface-2 rounded-2xl p-4 sm:p-5 grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t.ended}</p>

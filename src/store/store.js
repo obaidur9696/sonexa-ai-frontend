@@ -1,4 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit';
+import { setupListeners } from '@reduxjs/toolkit/query';
 import { authApi }    from './api/authApi';
 import { sessionApi } from './api/sessionApi';
 import { projectApi } from './api/projectApi'; // ✅ Import projectApi
@@ -16,3 +17,5 @@ export const store = configureStore({
       projectApi.middleware // ✅ Add projectApi middleware
     ),
 });
+
+setupListeners(store.dispatch);

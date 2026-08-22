@@ -1,8 +1,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
-import { createBaseQueryWithReauth } from './baseQueryWithReauth';
+import { apiBaseUrl, createBaseQueryWithReauth } from './baseQueryWithReauth';
 
-const baseQueryWithReauth = createBaseQueryWithReauth(import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
-console.log("url", import.meta.env.VITE_API_URL);  
+const baseQueryWithReauth = createBaseQueryWithReauth(apiBaseUrl);
 export const projectApi = createApi({
   reducerPath: 'projectApi',
   baseQuery: baseQueryWithReauth,
@@ -17,6 +16,7 @@ export const projectApi = createApi({
         },
       }),
       transformResponse: (response) => response.data,
+      keepUnusedDataFor: 60 * 60,
       providesTags: (result, error, { webrtcId }) => [
         { type: 'Project', id: webrtcId },
       ],

@@ -55,9 +55,11 @@ const Button = forwardRef(({
       className={classes}
       disabled={disabled || loading}
       onClick={onClick}
+      aria-busy={loading || undefined}
       {...rest}
     >
       {loading && <Spinner size={size} />}
+      {loading && <span className="sr-only">Loading</span>}
       {children}
     </button>
   );
