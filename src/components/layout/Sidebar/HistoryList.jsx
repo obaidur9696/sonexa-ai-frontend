@@ -63,7 +63,7 @@ const HistoryList = ({ isOpen }) => {
                 <HistoryItem
                   item={{
                     id: session.id,
-                    title: session.title || 'New Conversation',
+                    title: session.title || session.topic || session.preferences?.topic || 'New Conversation',
                     date: formatDate(session.date || session.createdAt),
                     createdAt: session.createdAt || session.date,
                     _isNew: session._isNew || false,

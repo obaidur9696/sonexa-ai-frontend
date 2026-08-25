@@ -13,7 +13,9 @@ export const authApi = createApi({
     }),
     login: builder.mutation({
       query: (credentials) => ({ url: '/v1/users/login', method: 'POST', body: credentials }),
-      invalidatesTags: ['User'],
+      // A rejected login must not refetch current-user: doing so remounts the
+      // login route and discards the visible invalid-credentials message.
+      invalidatesTags: (result) => (result ? ['User'] : []),
     }),
     logout: builder.mutation({
       query: () => ({ url: '/v1/users/logout', method: 'POST' }),

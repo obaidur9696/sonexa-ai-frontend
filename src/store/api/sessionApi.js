@@ -2,7 +2,8 @@ import { createApi } from '@reduxjs/toolkit/query/react';
 import { apiBaseUrl, createBaseQueryWithReauth } from './baseQueryWithReauth';
 
 const baseQueryWithReauth = createBaseQueryWithReauth(apiBaseUrl);
-const listCacheArg = { page: 1, limit: 10, status: 'ended' };
+export const sessionListCacheArg = { page: 1, limit: 10, status: 'ended' };
+const listCacheArg = sessionListCacheArg;
 
 export const sessionApi = createApi({
   reducerPath: 'sessionApi',
@@ -116,6 +117,105 @@ export const sessionApi = createApi({
     }),
   }),
 });
+
+const getSessionId = (session) => session?.id ?? session?._id ?? session?.sessionId;
+
+const normalizeSessionListItem = (session) => {
+  const id = getSessionId(session);
+  if (!id) return null;
+
+  const topic = session.topic ?? session.preferences?.topic;
+  return {
+    ...session,
+    id,
+    ...(topic ? { topic, title: session.title || topic } : {}),
+  };
+};
+
+export const upsertSessionInListCache = (dispatch, session) => {
+  const item = normalizeSessionListItem(session);
+  if (!item) return undefined;
+
+  return dispatch(
+    sessionApi.util.updateQueryData('getUserSessions', sessionListCacheArg, (draft) => {
+      if (!draft?.sessions) return;
+
+      const index = draft.sessions.findIndex((entry) => String(getSessionId(entry)) === String(item.id));
+      if (index >= 0) {
+        draft.sessions[index] = { ...draft.sessions[index], ...item };
+        return;
+      }
+
+      draft.sessions.unshift(item);
+      if (draft.pagination?.total != null) draft.pagination.total += 1;
+    })
+  );
+};
+
+const pendingSessionFinalizations = new Map();
+
+export const stopAllSessionFinalizationPolls = () => {
+  [...pendingSessionFinalizations.values()].forEach(({ stop }) => stop());
+};
+
+export const startSessionFinalizationPoll = (dispatch, sessionId) => {
+  if (!sessionId) return undefined;
+
+  const key = String(sessionId);
+  const existing = pendingSessionFinalizations.get(key);
+  if (existing) return existing.stop;
+
+  let active = true;
+  let isPolling = false;
+  let intervalId;
+  let initialDelayId;
+  let giveUpId;
+
+  const stop = () => {
+    if (!active) return;
+    active = false;
+    clearInterval(intervalId);
+    clearTimeout(initialDelayId);
+    clearTimeout(giveUpId);
+    pendingSessionFinalizations.delete(key);
+  };
+
+  const poll = async () => {
+    if (!active || isPolling) return;
+    isPolling = true;
+
+    try {
+      const result = await dispatch(
+        sessionApi.endpoints.getSessionById.initiate(sessionId, {
+          forceRefetch: true,
+          subscribe: false,
+        })
+      );
+
+      const session = result?.data;
+      if (!active || result?.error || !session || session.status !== 'ended') return;
+
+      const finalSessionId = getSessionId(session) ?? sessionId;
+      upsertSessionInListCache(dispatch, session);
+      dispatch(sessionApi.util.upsertQueryData('getSessionById', finalSessionId, session));
+      dispatch(sessionApi.util.invalidateTags([{ type: 'SessionStats', id: 'GLOBAL' }]));
+      stop();
+    } catch {
+      // The server may still be finalizing the session; the next poll retries.
+    } finally {
+      isPolling = false;
+    }
+  };
+
+  pendingSessionFinalizations.set(key, { stop });
+  initialDelayId = setTimeout(() => {
+    poll();
+    intervalId = setInterval(poll, 4000);
+  }, 2000);
+  giveUpId = setTimeout(stop, 30_000);
+
+  return stop;
+};
 
 export const {
   useGetUserSessionsQuery,

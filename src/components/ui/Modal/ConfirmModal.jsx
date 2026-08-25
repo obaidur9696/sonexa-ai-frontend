@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Button from '../Button/Button';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
 
 const ConfirmModal = ({
   isOpen,
@@ -38,8 +39,7 @@ const ConfirmModal = ({
     if (!isOpen) return undefined;
 
     previousFocusRef.current = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const releaseBodyScroll = lockBodyScroll();
     const frame = window.requestAnimationFrame(() => {
       (showInput ? inputRef.current : cancelButtonRef.current || dialogRef.current)?.focus();
     });
@@ -72,7 +72,7 @@ const ConfirmModal = ({
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = previousOverflow;
+      releaseBodyScroll();
       previousFocusRef.current?.focus?.();
     };
   }, [isOpen, onClose, showInput]);

@@ -3,9 +3,11 @@
    ============================================================ */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useDispatch } from 'react-redux';
 import { wsService } from '../services/webrtc/websocketService';
 import { webrtcService } from '../services/webrtc/webrtcService';
 import { sessionService } from '../services/webrtc/sessionService';
+import { startSessionFinalizationPoll, upsertSessionInListCache } from '../store/api/sessionApi';
 
 /* ============================================================
    UTILITY FUNCTIONS
@@ -35,12 +37,14 @@ const finalizeText = (text) => {
    ============================================================ */
 
 export const useVoiceConnection = ({ formData = {} } = {}) => {
+  const dispatch = useDispatch();
 
   /* ================================
      STATE
   ================================ */
   const [connectionState, setConnectionState] = useState('idle');
   const [isMuted, setIsMuted] = useState(false);
+  const [isBotSpeaking, setIsBotSpeaking] = useState(false);
   const [remoteStream, setRemoteStream] = useState(null);
   const [localStream, setLocalStream] = useState(null);
   const [sessionId, setSessionId] = useState(null);
@@ -60,7 +64,11 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
   const timerSyncIntervalRef = useRef(null);
   const countdownIntervalRef = useRef(null);
   const connectionStateRef = useRef(connectionState);
+  const sessionIdRef = useRef(null);
   const disconnectRef = useRef(null);
+  const isBotSpeakingRef = useRef(false);
+  const botTextQueueRef = useRef(null);
+  const botTextTimerRef = useRef(null);
 
   /* ================================
      UPDATE FORM DATA REF
@@ -104,6 +112,71 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
     });
   }, []);
 
+  const stopBotTextProgression = useCallback(() => {
+    if (botTextTimerRef.current) {
+      clearInterval(botTextTimerRef.current);
+      botTextTimerRef.current = null;
+    }
+  }, []);
+
+  const getQueuedBotText = useCallback((queue) => {
+    const words = queue.targetText.match(/\S+\s*/g) || [];
+    return words.slice(0, Math.min(queue.revealedWordCount, words.length)).join('').trimEnd();
+  }, []);
+
+  const revealNextBotWord = useCallback(() => {
+    const queue = botTextQueueRef.current;
+    if (!queue) return;
+
+    const words = queue.targetText.match(/\S+\s*/g) || [];
+    if (queue.revealedWordCount >= words.length) return;
+
+    queue.revealedWordCount += 1;
+    const visibleText = getQueuedBotText(queue);
+    const isComplete = queue.transcriptEnded && queue.revealedWordCount >= words.length;
+    setMessages((prev) => prev.map((message) => (
+      message.id === queue.id ? { ...message, text: visibleText, isStreaming: !isComplete } : message
+    )));
+
+    if (isComplete) {
+      stopBotTextProgression();
+      if (activeTurnRef.current?.id === queue.id) activeTurnRef.current = null;
+      botTextQueueRef.current = null;
+    }
+  }, [getQueuedBotText, stopBotTextProgression]);
+
+  const startBotTextProgression = useCallback(() => {
+    if (!botTextQueueRef.current || botTextTimerRef.current) return;
+
+    revealNextBotWord();
+    botTextTimerRef.current = setInterval(revealNextBotWord, 280);
+  }, [revealNextBotWord]);
+
+  const finishBotTextProgression = useCallback((interrupted = false) => {
+    stopBotTextProgression();
+
+    const queue = botTextQueueRef.current;
+    if (!queue) return;
+
+    const visibleText = getQueuedBotText(queue);
+    const finalText = interrupted ? finalizeText(visibleText) : finalizeText(queue.targetText);
+
+    setMessages((prev) => {
+      if (!finalText) return prev.filter((message) => message.id !== queue.id);
+      return prev.map((message) => (
+        message.id === queue.id ? { ...message, text: finalText, isStreaming: false } : message
+      ));
+    });
+
+    if (activeTurnRef.current?.id === queue.id) activeTurnRef.current = null;
+    botTextQueueRef.current = null;
+  }, [getQueuedBotText, stopBotTextProgression]);
+
+  const interruptBotTextProgression = useCallback(() => {
+    if (activeTurnRef.current?.sender !== 'bot') return;
+    finishBotTextProgression(true);
+  }, [finishBotTextProgression]);
+
   /* ================================
      TURN MACHINE (Transcript Handling)
   ================================ */
@@ -127,6 +200,10 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
         sender,
         text: '',
       };
+
+      if (sender === 'bot') {
+        botTextQueueRef.current = { id: newId, targetText: '', revealedWordCount: 0 };
+      }
 
       setMessages((prev) => {
         let nextMessages = prev;
@@ -187,6 +264,24 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
       const nextText = replaceChunkText(active.text, chunk);
       activeTurnRef.current = { ...active, text: nextText };
 
+      if (sender === 'bot') {
+        const queue = botTextQueueRef.current;
+        if (queue?.id !== active.id) {
+          botTextQueueRef.current = { id: active.id, targetText: nextText, revealedWordCount: 0 };
+        } else {
+          queue.targetText = nextText;
+          const visibleText = getQueuedBotText(queue);
+          if (visibleText) {
+            setMessages((prev) => prev.map((message) => (
+              message.id === active.id ? { ...message, text: visibleText, isStreaming: true } : message
+            )));
+          }
+        }
+
+        if (isBotSpeakingRef.current) startBotTextProgression();
+        return;
+      }
+
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === active.id
@@ -197,7 +292,7 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
 
       console.log(`[TRANSCRIPT] 📝 ${sender} sentence updated: "${chunk}"`);
     },
-    [startTurn]
+    [getQueuedBotText, startBotTextProgression, startTurn]
   );
 
   const endTurn = useCallback(
@@ -214,11 +309,27 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
 
       console.log(`[TRANSCRIPT] ✅ ${current.sender} finished speaking`);
 
+      if (current.sender === 'bot') {
+        // A short silent gap can occur mid-sentence, so only mark the queue complete
+        // after its paced text has been fully revealed.
+        const queue = botTextQueueRef.current;
+        if (queue?.id === current.id) {
+          queue.transcriptEnded = true;
+          const wordCount = (queue.targetText.match(/\S+\s*/g) || []).length;
+          if (queue.revealedWordCount >= wordCount) finishBotTextProgression();
+        }
+        return;
+      }
+
       removeOrFinalizeMessage(current.id, current.text);
       activeTurnRef.current = null;
     },
-    [removeOrFinalizeMessage]
+    [finishBotTextProgression, removeOrFinalizeMessage]
   );
+
+  useEffect(() => {
+    if (isBotSpeaking) startBotTextProgression();
+  }, [isBotSpeaking, startBotTextProgression]);
 
   /* ================================
      TIMER FUNCTIONS
@@ -272,9 +383,10 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
       const sender = data?.sender;
       if (!sender) return;
       console.log(`[TRANSCRIPT] 🎤 ${sender} started speaking`);
+      if (sender === 'user') interruptBotTextProgression();
       startTurn(sender);
     },
-    [startTurn]
+    [interruptBotTextProgression, startTurn]
   );
 
   const handleTranscriptChunk = useCallback(
@@ -319,7 +431,15 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
     }
 
     if (data?.sessionId) {
+      sessionIdRef.current = data.sessionId;
       setSessionId(data.sessionId);
+      upsertSessionInListCache(dispatch, {
+        id: data.sessionId,
+        status: data.status,
+        createdAt: data.createdAt,
+        topic: data.topic,
+        preferences: data.preferences,
+      });
       console.log('[VoiceConnection] Session ID received:', data.sessionId);
     } else {
       console.warn('[VoiceConnection] ⚠️ No sessionId in bot-ready event:', data);
@@ -339,7 +459,7 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
         console.log('[Timer] Sync request sent');
       }
     }, 60000);
-  }, []);
+  }, [dispatch]);
 
   /* ================================
      WEBSOCKET EVENT REGISTRATION
@@ -432,6 +552,7 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
 
     webrtcService.close();
     wsService.disconnect();
+    startSessionFinalizationPoll(dispatch, sessionIdRef.current);
     sessionService.clear();
 
     webrtcService.onRemoteStream = null;
@@ -440,13 +561,18 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
     setLocalStream(null);
     setMessages([]);
     setIsMuted(false);
+    setIsBotSpeaking(false);
+    isBotSpeakingRef.current = false;
+    stopBotTextProgression();
+    botTextQueueRef.current = null;
     setRemainingSeconds(null);
 
     hasStartedRef.current = false;
     roomIdRef.current = null;
+    sessionIdRef.current = null;
     activeTurnRef.current = null;
     messageCounterRef.current = 0;
-  }, [stopCountdown]);
+  }, [dispatch, stopBotTextProgression, stopCountdown]);
 
   useEffect(() => {
     disconnectRef.current = disconnect;
@@ -503,6 +629,10 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
             setRemoteStream(stream);
           }
         };
+        webrtcService.onBotSpeakingChange = (isSpeaking) => {
+          isBotSpeakingRef.current = isSpeaking;
+          if (!cancelledRef.current) setIsBotSpeaking(isSpeaking);
+        };
 
         wsService.connect();
 
@@ -554,6 +684,7 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
   return {
     connectionState,
     isMuted,
+    isBotSpeaking,
     remoteStream,
     localStream,
     messages,

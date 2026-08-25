@@ -760,7 +760,7 @@ const SessionDetail = () => {
       <div className="orb orb-brand-1 animate-orb-pulse pointer-events-none" />
       <div className="orb orb-brand-2 animate-orb-alt pointer-events-none" style={{ bottom: '14%', right: '-8rem' }} />
 
-      <main className="container-lg py-6 sm:py-9 relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="w-full py-6 sm:py-9 relative z-10 px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
         <motion.header initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="mb-6">
           <button
             type="button"

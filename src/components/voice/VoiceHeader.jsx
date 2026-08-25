@@ -81,14 +81,14 @@ const VoiceHeader = ({ connectionState, remainingSeconds = null }) => {
     backdrop-blur-md
   ">
       {/* ── Logo Section (Left) ── */}
-      {/* <motion.div
+      <motion.div
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.3 }}
-        className="flex items-center gap-2 sm:gap-3"
+        className="flex shrink-0 items-center"
       >
-        <SonexaLogo size={28} showText={true} />
-      </motion.div> */}
+        <SonexaLogo size={28} showText={false} />
+      </motion.div>
 
       {/* ── Timer + Status Section (Right) ── */}
       <div className="flex items-center gap-2 sm:gap-3 ml-auto">

@@ -1,5 +1,4 @@
-import { useDispatch } from 'react-redux';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import {
   useGetUserSessionsQuery,
   useGetSessionByIdQuery,
@@ -7,7 +6,6 @@ import {
   useDeleteSessionMutation,
   useGetGlobalSessionStatsQuery,
 } from '../store/api/sessionApi';
-import { sessionApi } from '../store/api/sessionApi';
 import { useAuth } from '../providers/AuthProvider';
 import toast from 'react-hot-toast';
 
@@ -42,83 +40,6 @@ export const useUserSessions = (initialPage = 1, limit = 10) => {
 };
 
 /* ─── Pending Session Poller ─────────────────────────────── */
-
-export const usePendingSessionPoller = ({ connectionState, sessionId }) => {
-  const dispatch = useDispatch();
-
-  useEffect(() => {
-    if (connectionState !== 'ended' || !sessionId) return undefined;
-
-    let isActive = true;
-    let isPolling = false;
-    let intervalId;
-    let initialDelayId;
-    let giveUpId;
-
-    const stop = () => {
-      clearInterval(intervalId);
-      clearTimeout(initialDelayId);
-      clearTimeout(giveUpId);
-    };
-
-    const finish = () => {
-      isActive = false;
-      stop();
-    };
-
-    const poll = async () => {
-      if (!isActive || isPolling) return;
-      isPolling = true;
-
-      try {
-        const result = await dispatch(
-          sessionApi.endpoints.getSessionById.initiate(sessionId, {
-            forceRefetch: true,
-            subscribe: false,
-          })
-        );
-
-        if (!isActive) return;
-
-        if (result?.error) {
-          return;
-        }
-
-        const session = result?.data;
-        if (!session) return;
-
-        if (session.status === 'ended') {
-          // Let active subscribers refetch their own pagination variant and
-          // global stats instead of maintaining a second, partial list cache.
-          dispatch(
-            sessionApi.util.invalidateTags([
-              { type: 'Sessions', id: 'LIST' },
-              { type: 'SessionStats', id: 'GLOBAL' },
-            ])
-          );
-          finish();
-        }
-      } catch {
-        // A not-yet-persisted session is expected while the server finalizes it.
-      } finally {
-        isPolling = false;
-      }
-    };
-
-    initialDelayId = setTimeout(() => {
-      poll();
-      intervalId = setInterval(poll, 4000);
-    }, 2000);
-
-    giveUpId = setTimeout(() => {
-      if (isActive) finish();
-    }, 30_000);
-
-    return () => {
-      finish();
-    };
-  }, [connectionState, sessionId, dispatch]);
-};
 
 /* ─── Get Single Session ─────────────────────────────── */
 export const useSession = (sessionId) => {

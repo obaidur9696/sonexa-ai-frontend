@@ -5,6 +5,10 @@ export const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000
 // API slices have independent base-query instances. Keeping refresh promises in
 // module scope makes concurrent 401 responses share one refresh request.
 const refreshRequests = new Map();
+const credentialRequestUrls = new Set([
+  '/v1/users/login',
+  '/v1/users/register',
+]);
 
 export const createBaseQueryWithReauth = (baseUrl = apiBaseUrl) => {
   const baseQuery = fetchBaseQuery({ baseUrl, credentials: 'include' });
@@ -16,6 +20,7 @@ export const createBaseQueryWithReauth = (baseUrl = apiBaseUrl) => {
     if (
       result.error?.status !== 401 ||
       requestUrl === '/v1/users/refresh-token' ||
+      credentialRequestUrls.has(requestUrl) ||
       extraOptions.skipReauth
     ) {
       return result;

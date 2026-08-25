@@ -22,6 +22,7 @@ const Login = () => {
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (user) navigate('/', { replace: true });
@@ -30,6 +31,7 @@ const Login = () => {
   const change = ({ target: { name, value } }) => {
     setForm((current) => ({ ...current, [name]: value }));
     if (touched[name]) setErrors((current) => ({ ...current, [name]: validate[name](value) }));
+    if (formError) setFormError('');
   };
   const touch = (name) => {
     setTouched((current) => ({ ...current, [name]: true }));
@@ -37,6 +39,7 @@ const Login = () => {
   };
   const handleSubmit = async (event) => {
     event.preventDefault();
+    setFormError('');
     const nextErrors = { email: validate.email(form.email), password: validate.password(form.password) };
     setTouched({ email: true, password: true });
     setErrors(nextErrors);
@@ -48,9 +51,13 @@ const Login = () => {
       return;
     }
     const message = result.error || 'Login failed';
-    if (message.toLowerCase().includes('email')) setErrors((current) => ({ ...current, email: message }));
-    else if (message.toLowerCase().includes('pass')) setErrors((current) => ({ ...current, password: message }));
-    else toast.error(message);
+    const normalizedMessage = message.toLowerCase();
+    setFormError(message);
+    if (normalizedMessage.includes('password') && !normalizedMessage.includes('email')) {
+      setErrors((current) => ({ ...current, password: message }));
+    } else if (normalizedMessage.includes('email') && !normalizedMessage.includes('password')) {
+      setErrors((current) => ({ ...current, email: message }));
+    }
   };
 
   return (
@@ -58,11 +65,8 @@ const Login = () => {
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <Input label="Email" type="email" name="email" value={form.email} onChange={change} onBlur={() => touch('email')} error={touched.email ? errors.email : ''} placeholder="you@example.com" autoComplete="email" fullWidth required icon={<Mail aria-hidden="true" className="h-4 w-4" />} />
         <PasswordField label="Password" name="password" value={form.password} onChange={change} onBlur={() => touch('password')} error={touched.password ? errors.password : ''} placeholder="Enter your password" show={showPassword} onToggle={() => setShowPassword((visible) => !visible)} autoComplete="current-password" />
-        <div className="flex items-center justify-between gap-3 text-xs">
-          <label className="flex cursor-pointer items-center gap-2 text-gray-600 dark:text-gray-400"><input type="checkbox" className="h-3.5 w-3.5 rounded accent-indigo-600 focus-visible:outline-indigo-500" />Remember me</label>
-          <Link to="/forgot-password" className="font-medium text-indigo-600 transition-colors hover:text-indigo-700 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">Forgot password?</Link>
-        </div>
-        <Button type="submit" fullWidth size="lg" loading={isLoading} className="mt-1">Sign in</Button>
+        {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300">{formError}</p>}
+        <Button type="submit" fullWidth size="lg" loading={isLoading} className="mt-2">Sign in</Button>
       </form>
       <div className="my-5"><div className="divider" /></div>
       <p className="text-center text-xs text-gray-500 dark:text-gray-400">No account yet?{' '}<Link to="/signup" className="font-semibold text-indigo-600 transition-colors hover:text-indigo-700 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">Create one free</Link></p>

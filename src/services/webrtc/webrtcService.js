@@ -36,6 +36,9 @@ class WebRTCService {
     this.localStream = null; // User's mic MediaStream
     this.remoteStream = null; // Bot's audio MediaStream
     this.audioElement = null; // Internal <audio> owned by the WebRTC service
+    this._botSpeaking = false;
+    this._botSpeakingInterval = null;
+    this._botSpeakingCleanup = null;
 
     /* ── ICE candidate queue ──
        Candidates from server are queued here until
@@ -45,6 +48,7 @@ class WebRTCService {
 
     /* ── Callbacks (set by the hook) ── */
     this.onRemoteStream = null; // (stream: MediaStream) => void
+    this.onBotSpeakingChange = null; // (isSpeaking: boolean) => void
     this.onConnectionState = null; // (state: string) => void
     this.onIceState = null; // (state: string) => void
   }
@@ -194,6 +198,7 @@ class WebRTCService {
      ───────────────────────────────────────── */
   close() {
     console.log('[WebRTC] Closing...');
+    this._stopBotSpeakingMonitor();
     // Stop microphone tracks (releases hardware)
     this.localStream?.getTracks().forEach(track => {
       track.stop();
@@ -219,6 +224,7 @@ class WebRTCService {
     this._pendingCandidates = [];
     this._remoteDescriptionSet = false;
     this.onRemoteStream = null;
+    this.onBotSpeakingChange = null;
     this.onConnectionState = null;
     this.onIceState = null;
 
@@ -264,6 +270,7 @@ class WebRTCService {
         }
 
         this.audioElement.srcObject = stream;
+        this._startBotSpeakingMonitor(peerConnection, track);
 
         // ✅ Production-safe play handling (autoplay retry)
         this.audioElement.play().catch((err) => {
@@ -314,6 +321,74 @@ class WebRTCService {
     };
 
     return peerConnection;
+  }
+
+  _setBotSpeaking(isSpeaking) {
+    if (this._botSpeaking === isSpeaking) return;
+    this._botSpeaking = isSpeaking;
+    this.onBotSpeakingChange?.(isSpeaking);
+  }
+
+  _stopBotSpeakingMonitor() {
+    if (this._botSpeakingInterval) {
+      clearInterval(this._botSpeakingInterval);
+      this._botSpeakingInterval = null;
+    }
+    this._botSpeakingCleanup?.();
+    this._botSpeakingCleanup = null;
+    this._setBotSpeaking(false);
+  }
+
+  _startBotSpeakingMonitor(peerConnection, track) {
+    this._stopBotSpeakingMonitor();
+
+    const receiver = peerConnection.getReceivers().find((item) => item.track === track);
+    let canReadAudioLevel = typeof receiver?.getSynchronizationSources === 'function';
+    const audioElement = this.audioElement;
+    const handlePlaybackStart = () => {
+      if (!canReadAudioLevel) this._setBotSpeaking(true);
+    };
+    const handlePlaybackStop = () => this._setBotSpeaking(false);
+    const handleTrackUnmute = () => {
+      if (!canReadAudioLevel) this._setBotSpeaking(true);
+    };
+    const handleTrackEnded = () => this._setBotSpeaking(false);
+
+    audioElement?.addEventListener('playing', handlePlaybackStart);
+    audioElement?.addEventListener('pause', handlePlaybackStop);
+    audioElement?.addEventListener('ended', handlePlaybackStop);
+    track.addEventListener('unmute', handleTrackUnmute);
+    track.addEventListener('ended', handleTrackEnded);
+
+    this._botSpeakingCleanup = () => {
+      audioElement?.removeEventListener('playing', handlePlaybackStart);
+      audioElement?.removeEventListener('pause', handlePlaybackStop);
+      audioElement?.removeEventListener('ended', handlePlaybackStop);
+      track.removeEventListener('unmute', handleTrackUnmute);
+      track.removeEventListener('ended', handleTrackEnded);
+    };
+
+    if (!canReadAudioLevel) return;
+
+    let lastAudibleAt = 0;
+    const updateSpeakingState = () => {
+      if (peerConnection !== this.pc || track.readyState === 'ended') return;
+      if (!canReadAudioLevel) return;
+
+      try {
+        const sources = receiver.getSynchronizationSources();
+        const isAudible = sources.some((source) => (source.audioLevel ?? 0) > 0.01);
+        if (isAudible) lastAudibleAt = Date.now();
+        this._setBotSpeaking(Date.now() - lastAudibleAt < 350);
+      } catch {
+        // Fall back to the media element when a browser rejects audio-level reads.
+        canReadAudioLevel = false;
+        if (!audioElement?.paused) this._setBotSpeaking(true);
+      }
+    };
+
+    updateSpeakingState();
+    this._botSpeakingInterval = setInterval(updateSpeakingState, 100);
   }
 
   /* ─────────────────────────────────────────

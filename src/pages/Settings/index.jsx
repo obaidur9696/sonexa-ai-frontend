@@ -54,12 +54,12 @@ const Icon = ({ name, className = 'w-4 h-4' }) => {
   );
 };
 
-const SectionCard = ({ icon, title, children }) => (
+const SectionCard = ({ icon, title, children, className = '' }) => (
   <motion.div
     initial={{ opacity: 0, y: 14 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.35 }}
-    className="card-md overflow-hidden mb-5"
+    className={`card-md overflow-hidden mb-5 ${className}`}
   >
     <div className="h-1 w-full" style={{ background: 'var(--grad-brand)' }} />
     <div className="p-5 sm:p-6">
@@ -146,7 +146,7 @@ const Settings = () => {
       <div className="orb orb-brand-1 animate-orb-pulse pointer-events-none" />
       <div className="orb orb-brand-2 animate-orb-alt pointer-events-none" style={{ bottom: '14%', right: '-8rem' }} />
 
-      <main className="container-lg py-6 sm:py-9 relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="w-full max-w-6xl mx-auto py-6 sm:py-9 relative z-10 px-4 sm:px-6 lg:px-8">
         {/* Back button */}
         <motion.header
           initial={{ opacity: 0, y: -14 }}
@@ -174,11 +174,14 @@ const Settings = () => {
           <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--grad-brand)', boxShadow: 'var(--shadow-brand)' }}>
             <Icon name="settings" className="w-5 h-5 text-white" />
           </span>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{UI.settings}</h1>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">{UI.settings}</h1>
+            <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">Manage your profile, appearance, and account.</p>
+          </div>
         </motion.div>
 
-        {/* Profile Card */}
-        <SectionCard icon="user" title={UI.profileInformation}>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(19rem,0.7fr)]">
+        <SectionCard icon="user" title={UI.profileInformation} className="mb-0">
           <AnimatePresence mode="wait">
             {isEditing ? (
               <motion.div
@@ -257,7 +260,8 @@ const Settings = () => {
           </AnimatePresence>
         </SectionCard>
 
-        <SectionCard icon="settings" title={UI.appearance}>
+        <aside className="space-y-5" aria-label="Account settings">
+        <SectionCard icon="settings" title={UI.appearance} className="mb-0">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold text-gray-900 dark:text-white">{UI.darkMode}</p>
@@ -276,8 +280,7 @@ const Settings = () => {
           </div>
         </SectionCard>
 
-        {/* Account Section */}
-        <SectionCard icon="lock" title={UI.account}>
+        <SectionCard icon="lock" title={UI.account} className="mb-0">
           <button
             type="button"
             onClick={handleLogout}
@@ -296,6 +299,8 @@ const Settings = () => {
             {UI.securelyEnd}
           </p>
         </SectionCard>
+        </aside>
+        </div>
 
         {/* Account Created Info */}
         <motion.div

@@ -15,7 +15,6 @@ import FailedOverlay from '../../components/voice/FailedOverlay';
 import SessionEndedOverlay from '../../components/voice/SessionEndedOverlay';
 import { useAuth } from '../../providers/AuthProvider';
 import ConversationScreen from '../../components/voice/ConversationScreen';
-import { usePendingSessionPoller } from '../../hooks/useSessions';
 
 /* ── Ambient background glows ─────────────────────────────── */
 const AmbientBackground = () => (
@@ -79,8 +78,8 @@ const ActiveVoiceSession = ({ formData, user }) => {
 
   const {
     connectionState,
-    sessionId,
     isMuted,
+    isBotSpeaking,
     isFailed,
     errorMessage,
     remainingSeconds,
@@ -92,8 +91,6 @@ const ActiveVoiceSession = ({ formData, user }) => {
   } = useVoiceConnection({
     formData: enrichedFormData
   });
-
-  usePendingSessionPoller({ connectionState, sessionId, });
 
   const handleGoHome = useCallback(() => navigate('/'), [navigate]);
   const handleRetry = useCallback(() => window.location.reload(), []);
@@ -108,7 +105,7 @@ const ActiveVoiceSession = ({ formData, user }) => {
 
   return (
     // ✅ CRITICAL: h-screen + overflow-hidden → NO outer scrollbar
-    <main className="h-screen flex flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#09090b] dark:text-gray-100" aria-label="Voice conversation session">
+    <main className={`flex flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#09090b] dark:text-gray-100 ${user ? 'h-[calc(100dvh-3.5rem)] md:h-screen' : 'h-[100dvh]'}`} aria-label="Voice conversation session">
 
       <AmbientBackground />
 
@@ -121,11 +118,11 @@ const ActiveVoiceSession = ({ formData, user }) => {
       </div>
 
       {/* ✅ Middle area - ONLY this can scroll */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+      <div className="flex-1 min-h-0 overflow-hidden">
         <div className="h-full w-full">
           <AnimatePresence mode="wait">
             {connectionState === "connected" ? (
-              <ConversationScreen messages={messages} />
+              <ConversationScreen messages={messages} isBotSpeaking={isBotSpeaking} />
             ) : (
               <div className="h-full flex items-center justify-center">
                 <VoiceScreens connectionState={connectionState} />

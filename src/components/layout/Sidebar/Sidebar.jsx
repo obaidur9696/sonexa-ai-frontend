@@ -3,6 +3,7 @@ import SidebarHeader from './SidebarHeader';
 import NewChatButton from './NewChatButton';
 import HistoryList   from './HistoryList';
 import BottomMenu    from './BottomMenu';
+import { lockBodyScroll } from '../../../utils/bodyScrollLock';
 
 const SidebarContent = ({ isOpen, onToggle, showToggle, onClose }) => (
   <div className="flex flex-col h-full overflow-visible">
@@ -53,8 +54,7 @@ const Sidebar = ({ isMobile, isOpen, mobileOpen, onToggleDesktop, onMobileClose 
   useEffect(() => {
     if (!isMobile || !mobileOpen) return undefined;
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const releaseBodyScroll = lockBodyScroll();
     const frame = window.requestAnimationFrame(() => mobilePanelRef.current?.focus());
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onMobileClose();
@@ -64,7 +64,7 @@ const Sidebar = ({ isMobile, isOpen, mobileOpen, onToggleDesktop, onMobileClose 
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = previousOverflow;
+      releaseBodyScroll();
     };
   }, [isMobile, mobileOpen, onMobileClose]);
 

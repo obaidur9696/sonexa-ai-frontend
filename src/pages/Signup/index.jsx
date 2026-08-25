@@ -30,12 +30,18 @@ const Signup = () => {
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [formError, setFormError] = useState('');
   const passwordStrength = useMemo(() => getStrength(form.password), [form.password]);
 
   useEffect(() => { if (user) navigate('/', { replace: true }); }, [user, navigate]);
-  const change = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
+  const change = (field) => (event) => {
+    setForm((current) => ({ ...current, [field]: event.target.value }));
+    setErrors((current) => ({ ...current, [field]: '' }));
+    if (formError) setFormError('');
+  };
   const handleSubmit = async (event) => {
     event.preventDefault();
+    setFormError('');
     const nextErrors = { firstName: validate.firstName(form.firstName), lastName: validate.lastName(form.lastName), email: validate.email(form.email), password: validate.password(form.password), confirmPassword: validate.confirmPassword(form.confirmPassword, form.password), gender: validate.gender(form.gender) };
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
@@ -43,8 +49,8 @@ const Signup = () => {
     const result = await register(payload);
     if (result.success) { toast.success('Account created! Please sign in.'); navigate('/login'); return; }
     const message = result.error || 'Registration failed';
-    if (message.toLowerCase().includes('email')) setErrors((current) => ({ ...current, email: 'Email already in use' }));
-    else toast.error(message);
+    setFormError(message);
+    if (message.toLowerCase().includes('email')) setErrors((current) => ({ ...current, email: message }));
   };
 
   return (
@@ -58,7 +64,8 @@ const Signup = () => {
           </div>
           <PasswordField label="Confirm Password" name="confirmPassword" value={form.confirmPassword} onChange={change('confirmPassword')} error={errors.confirmPassword} placeholder="Confirm password" show={showConfirmation} onToggle={() => setShowConfirmation((visible) => !visible)} autoComplete="new-password" />
         </div>
-        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2"><Dropdown label="Gender" options={GENDER_OPTIONS} value={form.gender} onChange={(option) => setForm((current) => ({ ...current, gender: option.value }))} placeholder="Select gender" error={errors.gender} fullWidth /><div className="field-group"><label className="field-label">Age <span className="ml-2 text-xs font-bold normal-case tracking-normal text-indigo-600 dark:text-indigo-400">{form.age} yrs</span></label><div className="pt-3"><RangeSlider value={form.age} min={13} max={100} step={1} onChange={(event) => setForm((current) => ({ ...current, age: Number(event.target.value) }))} showValue={false} fullWidth /><div className="mt-1.5 flex justify-between text-[0.65rem] text-gray-400 dark:text-gray-500"><span>13</span><span>100</span></div></div></div></div>
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2"><Dropdown label="Gender" options={GENDER_OPTIONS} value={form.gender} onChange={(option) => { setForm((current) => ({ ...current, gender: option.value })); setErrors((current) => ({ ...current, gender: '' })); if (formError) setFormError(''); }} placeholder="Select gender" error={errors.gender} fullWidth /><div className="field-group"><label className="field-label">Age <span className="ml-2 text-xs font-bold normal-case tracking-normal text-indigo-600 dark:text-indigo-400">{form.age} yrs</span></label><div className="pt-3"><RangeSlider value={form.age} min={13} max={100} step={1} onChange={(event) => setForm((current) => ({ ...current, age: Number(event.target.value) }))} showValue={false} fullWidth /><div className="mt-1.5 flex justify-between text-[0.65rem] text-gray-400 dark:text-gray-500"><span>13</span><span>100</span></div></div></div></div>
+        {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300">{formError}</p>}
         <Button type="submit" fullWidth size="lg" loading={isLoading}>Create account</Button>
       </form>
       <div className="mt-5"><div className="divider" /></div>
