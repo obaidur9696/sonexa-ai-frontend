@@ -59,7 +59,7 @@ const STATUS_CONFIG = {
   },
 };
 
-const VoiceHeader = ({ connectionState, remainingSeconds = null }) => {
+const VoiceHeader = ({ connectionState, remainingSeconds = null, mobileFixed = false }) => {
   const status = STATUS_CONFIG[connectionState] ?? STATUS_CONFIG.connecting;
 
   // Keep the timer area visible as soon as the session connects. The initial
@@ -74,14 +74,14 @@ const VoiceHeader = ({ connectionState, remainingSeconds = null }) => {
   const timerAnimation = isTimerWarning ? { scale: [1, 1.05, 1] } : {};
 
   return (
-    <header className="
-    sticky top-0 z-30 shrink-0
+    <header className={`
+    ${mobileFixed ? 'fixed inset-x-0 top-14 z-40 md:static' : 'relative z-30'} shrink-0
     flex items-center justify-between
     px-3 sm:px-6 h-14 sm:h-16
     border-b border-gray-200 dark:border-white/[0.08]
     bg-white/80 dark:bg-[#09090b]/80
     backdrop-blur-md
-  ">
+  `}>
       {/* ── Logo Section (Left) ── */}
       <motion.div
         initial={{ opacity: 0, x: -10 }}

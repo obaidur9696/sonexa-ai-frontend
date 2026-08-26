@@ -105,15 +105,16 @@ const ActiveVoiceSession = ({ formData, user }) => {
 
   return (
     // ✅ CRITICAL: h-screen + overflow-hidden → NO outer scrollbar
-    <main className={`flex min-h-0 flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#09090b] dark:text-gray-100 ${user ? 'h-[calc(100dvh-3.5rem)] md:h-screen' : 'h-[100dvh]'}`} aria-label="Voice conversation session">
+    <main className={`voice-session flex min-h-0 flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#09090b] dark:text-gray-100 ${user ? 'voice-session--authenticated md:h-screen' : 'voice-session--guest'}`} aria-label="Voice conversation session">
 
       <AmbientBackground />
 
       {/* ✅ Header - FIXED, never scrolls */}
-      <div className="shrink-0">
+      <div className={`shrink-0 ${user ? 'h-14 md:h-auto' : ''}`}>
         <VoiceHeader
           connectionState={connectionState}
           remainingSeconds={remainingSeconds}
+          mobileFixed={Boolean(user)}
         />
       </div>
 

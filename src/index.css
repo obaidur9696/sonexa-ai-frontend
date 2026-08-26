@@ -69,6 +69,18 @@ body {
   background-color: #ffffff;
   color: #111827;
 }
+
+/* VoiceSession needs a classic viewport fallback for older Android browsers
+   that do not understand the dynamic viewport (`dvh`) unit. */
+.voice-session--authenticated {
+  height: calc(100vh - 3.5rem);
+  height: calc(100dvh - 3.5rem);
+}
+
+.voice-session--guest {
+  height: 100vh;
+  height: 100dvh;
+}
 .dark body {
   background-color: #09090b;
   color: #f9fafb;
