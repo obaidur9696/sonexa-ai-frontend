@@ -5,16 +5,10 @@ import SonexaLogo from "../ui/Logo/SonexaLogo";
 /* ================================
    USER ICON
 ================================ */
-const SpeakingAvatar = ({ children, isSpeaking, ringClass, waveClass }) => (
+const SpeakingAvatar = ({ children, isSpeaking, waveClass }) => (
   <div className="relative h-8 w-8 shrink-0">
     {isSpeaking && (
       <>
-        <motion.span
-          aria-hidden="true"
-          className={`absolute inset-[-4px] rounded-full border shadow-[0_0_12px_rgba(99,102,241,0.32)] dark:shadow-[0_0_14px_rgba(196,181,253,0.22)] ${ringClass}`}
-          animate={{ scale: [0.9, 1.25, 1.42], opacity: [0.86, 0.36, 0] }}
-          transition={{ duration: 1.25, repeat: Infinity, ease: 'easeOut' }}
-        />
         <div aria-hidden="true" className="absolute -bottom-1 left-1/2 z-20 flex h-2 -translate-x-1/2 items-end gap-px rounded-full bg-white/90 px-1 py-0.5 shadow-sm dark:bg-gray-900/90">
           {[0, 0.16, 0.32].map((delay) => (
             <motion.span
@@ -27,18 +21,14 @@ const SpeakingAvatar = ({ children, isSpeaking, ringClass, waveClass }) => (
         </div>
       </>
     )}
-    <motion.div
-      animate={isSpeaking ? { scale: [1, 1.06, 1] } : { scale: 1 }}
-      transition={isSpeaking ? { duration: 0.9, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.16 }}
-      className="relative z-10 h-8 w-8"
-    >
+    <div className="relative z-10 h-8 w-8">
       {children}
-    </motion.div>
+    </div>
   </div>
 );
 
 const UserIcon = ({ isSpeaking }) => (
-  <SpeakingAvatar isSpeaking={isSpeaking} ringClass="border-indigo-500/90 dark:border-indigo-300/80" waveClass="bg-indigo-500">
+  <SpeakingAvatar isSpeaking={isSpeaking} waveClass="bg-indigo-500">
     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-pink-500 shadow-lg">
       <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -52,7 +42,7 @@ const UserIcon = ({ isSpeaking }) => (
    BOT ICON
 ================================ */
 const BotIcon = ({ isSpeaking }) => (
-  <SpeakingAvatar isSpeaking={isSpeaking} ringClass="border-violet-500/90 dark:border-violet-300/80" waveClass="bg-violet-500">
+  <SpeakingAvatar isSpeaking={isSpeaking} waveClass="bg-violet-500">
     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 shadow-md">
       <SonexaLogo size={18} showText={false} />
     </div>
@@ -144,8 +134,10 @@ const MessageBubble = memo(({ message, isSpeaking }) => {
 const ConversationScreen = memo(({ messages, isBotSpeaking }) => {
   const containerRef = useRef(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [visibleSpeaker, setVisibleSpeaker] = useState(null);
   const followLatestRef = useRef(true);
   const scrollFrameRef = useRef(null);
+  const speakerReleaseTimerRef = useRef(null);
 
   /* ================================
      SCROLL HANDLER
@@ -156,34 +148,67 @@ const ConversationScreen = memo(({ messages, isBotSpeaking }) => {
 
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 64;
 
-    if (nearBottom) followLatestRef.current = true;
+    // Ignore scroll events caused by the follow animation itself. User input
+    // cancels that animation before it can reach this handler.
+    if (scrollFrameRef.current) return;
+
+    followLatestRef.current = nearBottom;
+    if (!nearBottom && scrollFrameRef.current) {
+      window.cancelAnimationFrame(scrollFrameRef.current);
+      scrollFrameRef.current = null;
+    }
     setIsAtBottom((current) => current === nearBottom ? current : nearBottom);
   }, []);
 
   const pauseFollowing = useCallback(() => {
     followLatestRef.current = false;
+    if (scrollFrameRef.current) {
+      window.cancelAnimationFrame(scrollFrameRef.current);
+      scrollFrameRef.current = null;
+    }
   }, []);
 
-  useEffect(() => () => window.cancelAnimationFrame(scrollFrameRef.current), []);
+  useEffect(() => () => {
+    window.cancelAnimationFrame(scrollFrameRef.current);
+    window.clearTimeout(speakerReleaseTimerRef.current);
+  }, []);
+
+  const smoothlyFollowLatest = useCallback(() => {
+    if (scrollFrameRef.current) return;
+
+    const step = () => {
+      const el = containerRef.current;
+      if (!el || !followLatestRef.current) {
+        scrollFrameRef.current = null;
+        return;
+      }
+
+      const target = Math.max(0, el.scrollHeight - el.clientHeight);
+      const distance = target - el.scrollTop;
+
+      if (distance <= 1) {
+        el.scrollTop = target;
+        scrollFrameRef.current = null;
+        setIsAtBottom(true);
+        return;
+      }
+
+      // Move toward a changing streaming-text height over several frames
+      // instead of jumping to the latest word on every incoming update.
+      el.scrollTop += Math.max(1, distance * 0.35);
+      scrollFrameRef.current = window.requestAnimationFrame(step);
+    };
+
+    scrollFrameRef.current = window.requestAnimationFrame(step);
+  }, []);
 
   /* ================================
      AUTO SCROLL - ONLY THIS AREA SCROLLS
   ================================ */
   useEffect(() => {
-    scrollFrameRef.current = window.requestAnimationFrame(() => {
-      const el = containerRef.current;
-      if (!el) return;
-
-      if (followLatestRef.current) {
-        el.scrollTop = el.scrollHeight;
-        setIsAtBottom(true);
-      } else {
-        updateScrollPosition();
-      }
-    });
-
-    return () => window.cancelAnimationFrame(scrollFrameRef.current);
-  }, [messages, updateScrollPosition]);
+    if (followLatestRef.current) smoothlyFollowLatest();
+    else updateScrollPosition();
+  }, [messages, smoothlyFollowLatest, updateScrollPosition]);
 
   const scrollToLatest = useCallback(() => {
     const el = containerRef.current;
@@ -210,6 +235,38 @@ const ConversationScreen = memo(({ messages, isBotSpeaking }) => {
     return null;
   }, [messages]);
   const activeSpeaker = activeUserMessageId ? 'user' : activeBotMessageId ? 'bot' : null;
+  const lastUserMessageId = useMemo(
+    () => [...messages].reverse().find((message) => message.sender === 'user')?.id ?? null,
+    [messages]
+  );
+  const lastBotMessageId = useMemo(
+    () => [...messages].reverse().find((message) => message.sender === 'bot')?.id ?? null,
+    [messages]
+  );
+
+  // Real voice and transcript events can contain natural sub-second gaps. Keep
+  // the visual wave alive briefly so it feels continuous, while a new speaker
+  // still takes priority immediately.
+  useEffect(() => {
+    window.clearTimeout(speakerReleaseTimerRef.current);
+
+    if (activeSpeaker) {
+      setVisibleSpeaker(activeSpeaker);
+      return undefined;
+    }
+
+    speakerReleaseTimerRef.current = window.setTimeout(() => {
+      setVisibleSpeaker(null);
+    }, 700);
+
+    return () => window.clearTimeout(speakerReleaseTimerRef.current);
+  }, [activeSpeaker]);
+
+  const visibleSpeakerMessageId = visibleSpeaker === 'user'
+    ? activeUserMessageId ?? lastUserMessageId
+    : visibleSpeaker === 'bot'
+      ? activeBotMessageId ?? lastBotMessageId
+      : null;
 
   return (
     // ✅ Key fix: ensure this component takes full height of parent
@@ -219,9 +276,11 @@ const ConversationScreen = memo(({ messages, isBotSpeaking }) => {
       <div
         ref={containerRef}
         onScroll={updateScrollPosition}
+        onPointerDown={pauseFollowing}
         onWheel={(event) => { if (event.deltaY < 0) pauseFollowing(); }}
         onTouchStart={pauseFollowing}
-        className="flex-1 touch-pan-y overflow-y-auto overscroll-contain px-3 py-4 space-y-4 scrollbar-thin scrollbar-thumb-gray-300 sm:px-4 dark:scrollbar-thumb-white/10"
+        onTouchMove={pauseFollowing}
+        className="flex-1 min-h-0 touch-pan-y overflow-y-auto overscroll-contain px-3 py-4 space-y-4 scrollbar-thin scrollbar-thumb-gray-300 sm:px-4 dark:scrollbar-thumb-white/10"
       >
         {!hasMessages ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center">
@@ -241,7 +300,7 @@ const ConversationScreen = memo(({ messages, isBotSpeaking }) => {
               <MessageBubble
                 key={msg.id}
                 message={msg}
-                isSpeaking={msg.id === (activeSpeaker === 'user' ? activeUserMessageId : activeBotMessageId)}
+                isSpeaking={msg.id === visibleSpeakerMessageId}
               />
             ))}
           </AnimatePresence>

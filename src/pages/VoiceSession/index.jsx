@@ -42,7 +42,7 @@ const ControlsBar = ({ isMuted, onToggleMute, onLeave }) => (
     bg-white/70 dark:bg-[#09090b]/70
     backdrop-blur-md
     px-4 sm:px-6
-    py-4 sm:py-5
+    py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:py-5
   ">
     <VoiceControls
       isMuted={isMuted}
@@ -105,7 +105,7 @@ const ActiveVoiceSession = ({ formData, user }) => {
 
   return (
     // ✅ CRITICAL: h-screen + overflow-hidden → NO outer scrollbar
-    <main className={`flex flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#09090b] dark:text-gray-100 ${user ? 'h-[calc(100dvh-3.5rem)] md:h-screen' : 'h-[100dvh]'}`} aria-label="Voice conversation session">
+    <main className={`flex min-h-0 flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-[#09090b] dark:text-gray-100 ${user ? 'h-[calc(100dvh-3.5rem)] md:h-screen' : 'h-[100dvh]'}`} aria-label="Voice conversation session">
 
       <AmbientBackground />
 
@@ -119,7 +119,7 @@ const ActiveVoiceSession = ({ formData, user }) => {
 
       {/* ✅ Middle area - ONLY this can scroll */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        <div className="h-full w-full">
+        <div className="h-full min-h-0 w-full">
           <AnimatePresence mode="wait">
             {connectionState === "connected" ? (
               <ConversationScreen messages={messages} isBotSpeaking={isBotSpeaking} />

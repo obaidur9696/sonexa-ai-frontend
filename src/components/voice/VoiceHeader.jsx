@@ -62,8 +62,10 @@ const STATUS_CONFIG = {
 const VoiceHeader = ({ connectionState, remainingSeconds = null }) => {
   const status = STATUS_CONFIG[connectionState] ?? STATUS_CONFIG.connecting;
 
-  // Check if timer should be shown (only when connected and timer exists)
-  const showTimer = connectionState === 'connected' && remainingSeconds !== null;
+  // Keep the timer area visible as soon as the session connects. The initial
+  // placeholder avoids the mobile header appearing to lose its timer while the
+  // first timer event is still in flight.
+  const showTimer = connectionState === 'connected';
 
   // Warning when less than 60 seconds remaining
   const isTimerWarning = remainingSeconds !== null && remainingSeconds <= 60;
@@ -73,7 +75,7 @@ const VoiceHeader = ({ connectionState, remainingSeconds = null }) => {
 
   return (
     <header className="
-    relative z-20 shrink-0
+    sticky top-0 z-30 shrink-0
     flex items-center justify-between
     px-3 sm:px-6 h-14 sm:h-16
     border-b border-gray-200 dark:border-white/[0.08]
