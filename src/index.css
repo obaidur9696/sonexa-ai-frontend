@@ -70,6 +70,12 @@ body {
   color: #111827;
 }
 
+/* Login and Signup fill one viewport so their document never scrolls. */
+.auth-page-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
 /* Guest VoiceSession needs a classic viewport fallback for older Android
    browsers that do not understand the dynamic viewport (`dvh`) unit. */
 .voice-session--guest {
@@ -490,7 +496,15 @@ button:not(:disabled),
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-text-fill-color: inherit;
-  -webkit-box-shadow: 0 0 0px 1000px transparent inset;
+  -webkit-text-fill-color: #111827;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  caret-color: #111827;
   transition: background-color 5000s ease-in-out 0s;
+}
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f9fafb;
+  -webkit-box-shadow: 0 0 0 1000px #111827 inset;
+  caret-color: #f9fafb;
 }
