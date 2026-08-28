@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Button from '../../../components/ui/Button/Button';
 import Dropdown from '../../../components/ui/Dropdown/Dropdown';
@@ -6,6 +6,7 @@ import Input from '../../../components/ui/Input/Input';
 import RangeSlider from '../../../components/ui/RangeSlider/RangeSlider';
 import SearchableDropdown from '../../../components/ui/SearchableDropdown/SearchableDropdown';
 import { GENDER_OPTIONS } from './landingConstants';
+import MicrophoneAccess from './MicrophoneAccess';
 
 const initialForm = {
   firstName: '', lastName: '', gender: '', language: '', topic: '', voiceAccent: '', discussionDepth: 'concise', sensitivity: 0.7,
@@ -32,7 +33,67 @@ const SessionSetup = memo(({
 }) => {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({ language: '', topic: '', voiceAccent: '' });
+  const [microphoneStatus, setMicrophoneStatus] = useState('checking');
   const setField = useCallback((field, value) => setForm((current) => ({ ...current, [field]: typeof value === 'object' ? value.value : value })), []);
+
+  useEffect(() => {
+    let isActive = true;
+    let permissionStatus;
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setMicrophoneStatus('unavailable');
+      return undefined;
+    }
+
+    const updatePermissionState = () => {
+      if (!isActive || !permissionStatus) return;
+      setMicrophoneStatus(permissionStatus.state === 'granted' ? 'granted' : permissionStatus.state === 'denied' ? 'denied' : 'prompt');
+    };
+
+    const checkPermission = async () => {
+      if (!navigator.permissions?.query) {
+        if (isActive) setMicrophoneStatus('prompt');
+        return;
+      }
+
+      try {
+        permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+        if (!isActive) return;
+        updatePermissionState();
+        permissionStatus.onchange = updatePermissionState;
+      } catch {
+        if (isActive) setMicrophoneStatus('prompt');
+      }
+    };
+
+    checkPermission();
+    return () => {
+      isActive = false;
+      if (permissionStatus) permissionStatus.onchange = null;
+    };
+  }, []);
+
+  const requestMicrophoneAccess = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setMicrophoneStatus('unavailable');
+      return;
+    }
+
+    setMicrophoneStatus('checking');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      stream.getTracks().forEach((track) => track.stop());
+      setMicrophoneStatus('granted');
+    } catch (error) {
+      setMicrophoneStatus(error?.name === 'NotAllowedError' || error?.name === 'SecurityError' ? 'denied' : 'error');
+    }
+  }, []);
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -48,6 +109,7 @@ const SessionSetup = memo(({
       document.getElementById(firstError)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
+    if (microphoneStatus !== 'granted') return;
     onStart(form);
   };
 
@@ -99,7 +161,9 @@ const SessionSetup = memo(({
               </div>
             </div>
 
-            <div className="pt-1"><Button type="submit" fullWidth size="lg" className="group relative overflow-hidden py-4 text-base sm:text-lg"><span className="relative z-10 flex items-center justify-center gap-2"><span aria-hidden="true">🚀</span>{user ? 'Start Premium Session' : 'Start Free Trial'}</span><span aria-hidden="true" className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" /></Button></div>
+            <MicrophoneAccess status={microphoneStatus} onRequest={requestMicrophoneAccess} />
+
+            <div className="pt-1"><Button type="submit" fullWidth size="lg" disabled={microphoneStatus !== 'granted'} className="group relative overflow-hidden py-4 text-base sm:text-lg"><span className="relative z-10 flex items-center justify-center gap-2"><span aria-hidden="true">🚀</span>{user ? 'Start Premium Session' : 'Start Free Trial'}</span><span aria-hidden="true" className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" /></Button></div>
             <div className="space-y-2 pt-1 text-center">
               {!user ? <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-gray-600 dark:text-gray-400 sm:text-sm"><span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-500/20 dark:text-green-300">{anonymousMinutes}-min free trial</span><span>Sign in for unlimited premium sessions</span></div> : <p className="text-xs text-gray-600 dark:text-gray-400 sm:text-sm"><span className="mr-2 inline-block rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">{authenticatedMinutes}-min / sessions</span>Premium access</p>}
               <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-500"><span>🔒 Enterprise security</span><span className="hidden sm:inline" aria-hidden="true">•</span><span>100+ languages</span><span className="hidden sm:inline" aria-hidden="true">•</span><span>1000+ topics</span></p>

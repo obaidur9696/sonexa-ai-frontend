@@ -639,17 +639,20 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
         await wsService.waitForConnection(10000, signal);
 
         if (cancelledRef.current) return;
-        wsService.send({
-          type: 'join',
-          roomId,
-          data: formDataRef.current,
-        });
 
+        // Acquire the microphone before the room is joined. This prevents a
+        // server-side greeting from starting while the browser permission UI
+        // is still active or the local microphone is not ready yet.
         await webrtcService.init();
 
         if (cancelledRef.current) return;
 
         setLocalStream(webrtcService.localStream);
+        wsService.send({
+          type: 'join',
+          roomId,
+          data: formDataRef.current,
+        });
         await webrtcService.createOffer();
       } catch (err) {
         console.error('[useVoiceConnection] Connection error:', err);
