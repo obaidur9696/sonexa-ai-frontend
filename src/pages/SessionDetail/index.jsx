@@ -32,7 +32,7 @@ const UI = {
   strengths: 'Strengths',
   improvements: 'Areas to improve',
   noInsights: 'Insights are not available yet',
-  noInsightsBody: 'This session is saved. A personalised communication report will appear here once enough user conversation data is available.',
+  noInsightsBody: 'There was not enough conversation content in this session to generate a meaningful communication report.',
   conversation: 'Conversation messages',
   showConversation: 'Show messages',
   hideConversation: 'Hide messages',
