@@ -29,6 +29,9 @@ const ICE_CONFIG = {
   ]
 };
 
+// A brief spoken pause must not be treated as the end of a bot response.
+const BOT_PLAYBACK_COMPLETE_SILENCE_MS = 800;
+
 class WebRTCService {
   constructor() {
     /* ── Core WebRTC objects ── */
@@ -39,6 +42,8 @@ class WebRTCService {
     this._botSpeaking = false;
     this._botSpeakingInterval = null;
     this._botSpeakingCleanup = null;
+    this._botPlaybackCompleteTimer = null;
+    this._hasActiveBotPlayback = false;
 
     /* ── ICE candidate queue ──
        Candidates from server are queued here until
@@ -49,6 +54,7 @@ class WebRTCService {
     /* ── Callbacks (set by the hook) ── */
     this.onRemoteStream = null; // (stream: MediaStream) => void
     this.onBotSpeakingChange = null; // (isSpeaking: boolean) => void
+    this.onBotPlaybackComplete = null; // () => void, after audible bot audio has finished
     this.onConnectionState = null; // (state: string) => void
     this.onIceState = null; // (state: string) => void
   }
@@ -225,6 +231,7 @@ class WebRTCService {
     this._remoteDescriptionSet = false;
     this.onRemoteStream = null;
     this.onBotSpeakingChange = null;
+    this.onBotPlaybackComplete = null;
     this.onConnectionState = null;
     this.onIceState = null;
 
@@ -326,7 +333,37 @@ class WebRTCService {
   _setBotSpeaking(isSpeaking) {
     if (this._botSpeaking === isSpeaking) return;
     this._botSpeaking = isSpeaking;
+
+    if (isSpeaking) {
+      this._hasActiveBotPlayback = true;
+      this._clearBotPlaybackCompleteTimer();
+    } else if (this._hasActiveBotPlayback) {
+      this._scheduleBotPlaybackComplete();
+    }
+
     this.onBotSpeakingChange?.(isSpeaking);
+  }
+
+  _clearBotPlaybackCompleteTimer() {
+    if (!this._botPlaybackCompleteTimer) return;
+    clearTimeout(this._botPlaybackCompleteTimer);
+    this._botPlaybackCompleteTimer = null;
+  }
+
+  cancelBotPlaybackCompletion() {
+    this._clearBotPlaybackCompleteTimer();
+    this._hasActiveBotPlayback = false;
+  }
+
+  _scheduleBotPlaybackComplete() {
+    this._clearBotPlaybackCompleteTimer();
+    this._botPlaybackCompleteTimer = setTimeout(() => {
+      this._botPlaybackCompleteTimer = null;
+      if (this._botSpeaking || !this._hasActiveBotPlayback) return;
+
+      this._hasActiveBotPlayback = false;
+      this.onBotPlaybackComplete?.();
+    }, BOT_PLAYBACK_COMPLETE_SILENCE_MS);
   }
 
   _stopBotSpeakingMonitor() {
@@ -336,6 +373,8 @@ class WebRTCService {
     }
     this._botSpeakingCleanup?.();
     this._botSpeakingCleanup = null;
+    this._clearBotPlaybackCompleteTimer();
+    this._hasActiveBotPlayback = false;
     this._setBotSpeaking(false);
   }
 

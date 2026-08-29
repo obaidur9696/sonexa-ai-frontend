@@ -261,7 +261,7 @@ const ScoreGuide = ({ ranges, t }) => (
 /**
  * Beautiful line chart for skill visualization
  */
-const SkillChart = ({ axes, scoreRanges, t }) => {
+const SkillChart = ({ axes }) => {
   const usable = axes.filter((axis) => Number.isFinite(Number(axis.score)));
   if (usable.length < 3) {
     return null;
@@ -858,7 +858,7 @@ const SessionDetail = () => {
             {/* The dashboard: three distinct visualizations, none repeating the same data. */}
             <section className="grid xl:grid-cols-[1.2fr_1fr] gap-5 mb-5">
               <DashboardCard icon="activity" title={t.skills} delay={0.15}>
-                {skillAxes.length ? <SkillChart axes={skillAxes} scoreRanges={scoreRanges} t={t} /> : <p className="text-sm text-gray-500 dark:text-gray-400 py-10 text-center">{t.noData}</p>}
+                {skillAxes.length ? <SkillChart axes={skillAxes} /> : <p className="text-sm text-gray-500 dark:text-gray-400 py-10 text-center">{t.noData}</p>}
                 <ScoreGuide ranges={scoreRanges} t={t} />
               </DashboardCard>
 

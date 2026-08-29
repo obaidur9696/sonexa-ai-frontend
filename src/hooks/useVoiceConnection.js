@@ -383,7 +383,10 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
       const sender = data?.sender;
       if (!sender) return;
       console.log(`[TRANSCRIPT] 🎤 ${sender} started speaking`);
-      if (sender === 'user') interruptBotTextProgression();
+      if (sender === 'user') {
+        webrtcService.cancelBotPlaybackCompletion();
+        interruptBotTextProgression();
+      }
       startTurn(sender);
     },
     [interruptBotTextProgression, startTurn]
@@ -483,7 +486,20 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
 
     const handleSessionExpired = (data) => {
       console.log('[WS] Session expired:', data);
-      const msg = data.message || 'Your session has expired. Thank you for using Sonexa AI.';
+      const msg = data?.message || data?.payload?.message || 'Your session has expired. Thank you for using Sonexa AI.';
+      setSessionExpireMessage(msg);
+      setConnectionState('ended');
+      disconnectRef.current?.();
+    };
+
+    const handleSessionEnded = (data) => {
+      const reason = data?.reason || data?.payload?.reason;
+      console.log('[WS] Session ended:', { reason, data });
+
+      const msg = data?.message
+        || data?.payload?.message
+        || 'This session has ended. You can start a new conversation whenever you are ready.';
+
       setSessionExpireMessage(msg);
       setConnectionState('ended');
       disconnectRef.current?.();
@@ -499,6 +515,7 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
 
     wsService.on('session_error', handleSessionError);
     wsService.on('session_expired', handleSessionExpired);
+    wsService.on('session_ended', handleSessionEnded);
     wsService.on('timer_sync', handleTimerSync);
 
     const cleanup = () => {
@@ -509,6 +526,7 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
       wsService.off('transcript_end', handleTranscriptEnd);
       wsService.off('session_error', handleSessionError);
       wsService.off('session_expired', handleSessionExpired);
+      wsService.off('session_ended', handleSessionEnded);
       wsService.off('timer_sync', handleTimerSync);
     };
 
@@ -632,6 +650,15 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
         webrtcService.onBotSpeakingChange = (isSpeaking) => {
           isBotSpeakingRef.current = isSpeaking;
           if (!cancelledRef.current) setIsBotSpeaking(isSpeaking);
+        };
+        webrtcService.onBotPlaybackComplete = () => {
+          if (cancelledRef.current || connectionStateRef.current !== 'connected' || !roomIdRef.current) return;
+
+          wsService.send({
+            type: 'bot_finished_frontendside',
+            roomId: roomIdRef.current,
+            payload: { sessionId: sessionIdRef.current },
+          });
         };
 
         wsService.connect();
