@@ -24,6 +24,8 @@ const UI = {
   overall: 'Overall performance',
   score: 'Score',
   skills: 'Skills at a glance',
+  scoreGuide: 'Score guide',
+  scoreRangesUnavailable: 'Score ranges are not available for this session.',
   communication: 'Communication',
   engagement: 'Engagement',
   grammar: 'Grammar',
@@ -223,10 +225,43 @@ const ScoreRing = ({ score, label, level, scoreLabel }) => {
   );
 };
 
+const normalizeScoreRanges = (ranges) => (
+  Array.isArray(ranges)
+    ? ranges
+      .filter((range) => Number.isFinite(Number(range?.minScore)) && Number.isFinite(Number(range?.maxScore)))
+      .map((range) => ({ ...range, minScore: Number(range.minScore), maxScore: Number(range.maxScore) }))
+      .filter((range) => range.minScore <= range.maxScore)
+      .sort((left, right) => left.minScore - right.minScore)
+    : []
+);
+
+const ScoreGuide = ({ ranges, t }) => (
+  <div className="mt-6 border-t border-gray-100 pt-5 dark:border-white/10">
+    <div className="mb-3 flex items-center gap-2">
+      <span className="h-6 w-6 rounded-lg bg-indigo-500/10 text-indigo-600 dark:bg-indigo-400/10 dark:text-indigo-300 flex items-center justify-center">
+        <Icon name="barChart" className="h-3.5 w-3.5" />
+      </span>
+      <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">{t.scoreGuide}</h3>
+    </div>
+    {ranges.length ? (
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {ranges.map((range) => (
+          <div key={`${range.minScore}-${range.maxScore}-${range.level}`} className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-2.5 py-2 text-center dark:border-indigo-400/15 dark:bg-indigo-500/8">
+            <p className="text-xs font-bold text-gray-800 dark:text-gray-100" dir="auto">{range.level}</p>
+            <p className="mt-0.5 font-mono text-[0.65rem] font-semibold text-indigo-600 dark:text-indigo-300">{range.minScore}–{range.maxScore}</p>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <p className="rounded-xl bg-gray-50 px-3 py-2.5 text-xs leading-5 text-gray-500 dark:bg-white/[0.04] dark:text-gray-400">{t.scoreRangesUnavailable}</p>
+    )}
+  </div>
+);
+
 /**
  * Beautiful line chart for skill visualization
  */
-const SkillChart = ({ axes }) => {
+const SkillChart = ({ axes, scoreRanges, t }) => {
   const usable = axes.filter((axis) => Number.isFinite(Number(axis.score)));
   if (usable.length < 3) {
     return null;
@@ -749,6 +784,7 @@ const SessionDetail = () => {
     { label: t.engagement, ...report?.engagement },
     { label: t.grammar, ...report?.grammar }
   ].filter((item) => item.status && Number.isFinite(Number(item.score)));
+  const scoreRanges = normalizeScoreRanges(report?.scoreRanges);
 
   const strengths = report?.strengths?.status ? (report.strengths.items || []) : [];
   const improvements = report?.improvements?.status ? (report.improvements.items || []) : [];
@@ -822,7 +858,8 @@ const SessionDetail = () => {
             {/* The dashboard: three distinct visualizations, none repeating the same data. */}
             <section className="grid xl:grid-cols-[1.2fr_1fr] gap-5 mb-5">
               <DashboardCard icon="activity" title={t.skills} delay={0.15}>
-                {skillAxes.length ? <SkillChart axes={skillAxes} /> : <p className="text-sm text-gray-500 dark:text-gray-400 py-10 text-center">{t.noData}</p>}
+                {skillAxes.length ? <SkillChart axes={skillAxes} scoreRanges={scoreRanges} t={t} /> : <p className="text-sm text-gray-500 dark:text-gray-400 py-10 text-center">{t.noData}</p>}
+                <ScoreGuide ranges={scoreRanges} t={t} />
               </DashboardCard>
 
               <div className="grid sm:grid-cols-2 xl:grid-cols-1 gap-5">
