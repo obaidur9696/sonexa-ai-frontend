@@ -118,7 +118,7 @@ const SessionSetup = memo(({
   const sensitivityProgress = rangeMax === rangeMin ? 0 : (form.sensitivity - rangeMin) / (rangeMax - rangeMin);
 
   return (
-    <section id="start-session" className="relative overflow-hidden bg-gradient-to-b from-gray-50 to-white py-16 dark:from-gray-900 dark:to-gray-950 sm:py-24">
+    <section id="start-session" className="relative overflow-hidden bg-gradient-to-b from-gray-50 to-white pb-16 pt-10 dark:from-gray-900 dark:to-gray-950 sm:pb-24 sm:pt-14">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0"><div className="absolute left-1/2 top-1/2 h-[44rem] w-[44rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-purple-500/5 blur-3xl dark:bg-purple-500/10" /></div>
       <div className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6">
         <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} className="mb-8 text-center sm:mb-10">

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { FEATURES } from './landingConstants';
 
 const FeaturesSection = memo(() => (
-  <section id="features" className="relative overflow-hidden bg-gradient-to-b from-white to-gray-50 py-16 dark:from-gray-950 dark:to-gray-900 sm:py-24 lg:py-28">
+  <section id="features" className="relative overflow-hidden bg-gradient-to-b from-white to-gray-50 pb-10 pt-16 dark:from-gray-950 dark:to-gray-900 sm:pb-14 sm:pt-24 lg:pb-16 lg:pt-28">
     <div className="pointer-events-none absolute inset-0">
       <div className="absolute left-1/2 top-1/2 h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/5 blur-3xl dark:bg-indigo-500/10" />
     </div>
