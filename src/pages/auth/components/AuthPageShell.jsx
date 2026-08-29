@@ -4,7 +4,7 @@ import SonexaLogo from '../../../components/ui/Logo/SonexaLogo';
 import ThemeToggle from '../../../components/ui/ThemeToggle/ThemeToggle';
 
 const AuthPageShell = ({ title, description, children, footer, maxWidth = 'max-w-md', compact = false }) => (
-  <main className="auth-page-shell overflow-hidden bg-[#f8f7ff] text-gray-900 dark:bg-[#09090b] dark:text-gray-100">
+  <main className={`auth-page-shell ${compact ? 'auth-page-shell--scrollable overflow-x-hidden' : 'overflow-hidden'} bg-[#f8f7ff] text-gray-900 dark:bg-[#09090b] dark:text-gray-100`}>
     <div className="grid h-full min-h-0 lg:grid-cols-[minmax(0,2fr)_minmax(28rem,3fr)]">
       <aside className="relative hidden h-full overflow-hidden bg-[#17122b] lg:flex lg:flex-col">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(139,92,246,0.58),transparent_34%),radial-gradient(circle_at_86%_80%,rgba(59,130,246,0.35),transparent_38%)]" />

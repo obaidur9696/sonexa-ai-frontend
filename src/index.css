@@ -76,6 +76,22 @@ body {
   height: 100dvh;
 }
 
+/* Signup has more fields than a short phone viewport can hold. Let its document
+   grow and use normal browser scrolling on mobile, while Login remains fixed. */
+@media (max-width: 1023px) {
+  .auth-page-shell--scrollable {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .auth-page-shell--scrollable > div {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
 /* Guest VoiceSession needs a classic viewport fallback for older Android
    browsers that do not understand the dynamic viewport (`dvh`) unit. */
 .voice-session--guest {
