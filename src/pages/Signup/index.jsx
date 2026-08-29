@@ -58,7 +58,7 @@ const Signup = () => {
       <form onSubmit={handleSubmit} noValidate className="space-y-3 sm:space-y-4">
         <div className="grid grid-cols-2 gap-3 sm:gap-4"><Input label="First Name" value={form.firstName} onChange={change('firstName')} error={errors.firstName} placeholder="Jane" autoComplete="given-name" fullWidth required /><Input label="Last Name" value={form.lastName} onChange={change('lastName')} error={errors.lastName} placeholder="Smith" autoComplete="family-name" fullWidth required /></div>
         <Input label="Email Address" type="email" value={form.email} onChange={change('email')} error={errors.email} placeholder="you@example.com" autoComplete="email" fullWidth required icon={<Mail aria-hidden="true" className="h-4 w-4" />} />
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
           <div><PasswordField label="Password" name="password" value={form.password} onChange={change('password')} error={errors.password} placeholder="Create password" show={showPassword} onToggle={() => setShowPassword((visible) => !visible)} autoComplete="new-password" />
             {form.password && <div className="mt-2" aria-live="polite"><div className="mb-1 flex gap-1">{[1, 2, 3, 4].map((level) => <span key={level} className={`h-1 flex-1 rounded-full transition-colors duration-300 ${level <= passwordStrength ? STRENGTH_LEVELS[passwordStrength - 1]?.color : 'bg-gray-200 dark:bg-white/10'}`} />)}</div><p className="text-[0.65rem] text-gray-400 dark:text-gray-500">Password strength: {STRENGTH_LEVELS[passwordStrength - 1]?.label ?? 'Weak'}</p></div>}
           </div>
