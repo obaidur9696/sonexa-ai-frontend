@@ -14,8 +14,7 @@ const UI = {
   back: 'Back',
   settings: 'Settings',
   profileInformation: 'Profile Information',
-  firstName: 'First Name',
-  lastName: 'Last Name',
+  name: 'Name',
   email: 'Email Address',
   age: 'Age',
   gender: 'Gender',
@@ -91,7 +90,7 @@ const Settings = () => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', age: 25 });
+  const [form, setForm] = useState({ name: '', email: '', age: 25 });
 
   useEffect(() => {
     if (!isLoading && !user) navigate('/login', { replace: true });
@@ -101,8 +100,7 @@ const Settings = () => {
     if (user) {
       const u = user?.data || user;
       setForm({
-        firstName: u.firstName || '',
-        lastName: u.lastName || '',
+        name: u.name || '',
         email: u.email || '',
         age: u.age || 25
       });
@@ -116,8 +114,7 @@ const Settings = () => {
 
   const handleSave = async () => {
     const res = await updateAccount({
-      firstName: form.firstName,
-      lastName: form.lastName,
+      name: form.name.trim(),
       email: form.email,
       age: form.age
     });
@@ -191,17 +188,12 @@ const Settings = () => {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.3 }}
               >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div className="mb-4">
                   <Input
-                    label={UI.firstName}
-                    value={form.firstName}
-                    onChange={(e) => setForm(f => ({ ...f, firstName: e.target.value }))}
-                    fullWidth
-                  />
-                  <Input
-                    label={UI.lastName}
-                    value={form.lastName}
-                    onChange={(e) => setForm(f => ({ ...f, lastName: e.target.value }))}
+                    label={UI.name}
+                    value={form.name}
+                    onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                    autoComplete="name"
                     fullWidth
                   />
                 </div>
@@ -231,7 +223,7 @@ const Settings = () => {
                 </div>
                 <div className="flex justify-end gap-2.5 pt-1">
                   <Button variant="ghost" size="sm" onClick={() => {
-                    setForm({ firstName: u.firstName || '', lastName: u.lastName || '', email: u.email || '', age: u.age || 25 });
+                    setForm({ name: u.name || '', email: u.email || '', age: u.age || 25 });
                     setIsEditing(false);
                   }}>{UI.cancel}</Button>
                   <Button size="sm" loading={saving} onClick={handleSave}>{UI.saveChanges}</Button>
@@ -246,8 +238,7 @@ const Settings = () => {
                 transition={{ duration: 0.2 }}
               >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
-                  <ViewField label={UI.firstName} value={u.firstName} />
-                  <ViewField label={UI.lastName} value={u.lastName} />
+                  <ViewField label={UI.name} value={u.name} />
                   <ViewField label={UI.email} value={u.email} />
                   <ViewField label={UI.age} value={u.age ? `${u.age} ${UI.years}` : undefined} />
                   <ViewField label={UI.gender} value={u.gender ? u.gender.charAt(0).toUpperCase() + u.gender.slice(1) : undefined} />

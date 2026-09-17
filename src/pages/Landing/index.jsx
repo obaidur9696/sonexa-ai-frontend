@@ -4,6 +4,7 @@ import { useAuth } from '../../providers/AuthProvider';
 import { useWebRTCConfig } from '../../hooks/useProject';
 import { useGlobalSessionStats } from '../../hooks/useSessions';
 import { getDeviceFingerprint } from '../../utils/deviceFingerprint';
+import { createVoiceSessionStartToken } from '../../services/webrtc/voiceSessionStartGuard';
 import { languageOptions as fallbackLanguageOptions } from '../../utils/constants/languageConstants';
 import { topicOptions as fallbackTopicOptions } from '../../utils/constants/topicConstants';
 import { voiceAccents as fallbackVoiceAccents } from '../../utils/constants/voiceAccents';
@@ -132,8 +133,7 @@ const Landing = () => {
 
   const handleStart = useCallback((form) => {
     const formData = {
-      firstName: user ? undefined : form.firstName,
-      lastName: user ? undefined : form.lastName,
+      name: user ? undefined : form.name.trim(),
       gender: user ? undefined : form.gender,
       language: form.language,
       topic: form.topic,
@@ -145,7 +145,12 @@ const Landing = () => {
       timestamp: Date.now(),
     };
 
-    navigate('/session/new', { state: { formData } });
+    navigate('/session/new', {
+      state: {
+        formData,
+        sessionStartToken: createVoiceSessionStartToken(),
+      },
+    });
   }, [deviceFingerprint, navigate, user]);
 
   const handleLogin = useCallback(() => navigate('/login'), [navigate]);

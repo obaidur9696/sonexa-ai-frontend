@@ -23,7 +23,23 @@ export const sessionApi = createApi({
         return `${endpointName}:${status}:${limit}`;
       },
       merge: (currentCache, newData, { arg }) => {
-        if (!currentCache || (arg?.page ?? 1) === 1) return newData;
+        if (!currentCache) return newData;
+
+        if ((arg?.page ?? 1) === 1) {
+          // The history endpoint returns ended sessions only. Keep sessions
+          // inserted after `bot-ready` until finalization supplies their
+          // ended record, even when a focus refetch replaces page one.
+          const incomingSessions = newData.sessions ?? [];
+          const incomingIds = new Set(incomingSessions.map((session) => String(session.id)));
+          const activeSessions = (currentCache.sessions ?? []).filter(
+            (session) => session.status !== 'ended' && !incomingIds.has(String(session.id))
+          );
+
+          return {
+            ...newData,
+            sessions: [...activeSessions, ...incomingSessions],
+          };
+        }
 
         const existingIds = new Set((currentCache.sessions ?? []).map((session) => String(session.id)));
         const uniqueIncoming = (newData.sessions ?? []).filter(

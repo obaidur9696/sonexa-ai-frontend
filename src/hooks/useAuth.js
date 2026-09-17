@@ -82,8 +82,8 @@ export const useLogout = () => {
 };
 
 /* ─── Current User ───────────────────────────── */
-export const useCurrentUser = () => {
-  const { data, isLoading, isFetching, isError, error } = useGetCurrentUserQuery();
+export const useCurrentUser = (queryOptions) => {
+  const { data, isLoading, isFetching, isError, error } = useGetCurrentUserQuery(undefined, queryOptions);
   // A rejected refresh can leave RTK Query's previous fulfilled value in the
   // cache. Never expose that stale user as an authenticated session.
   const user = isError ? undefined : data;

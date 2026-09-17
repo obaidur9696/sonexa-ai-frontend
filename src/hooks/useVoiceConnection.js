@@ -438,7 +438,9 @@ export const useVoiceConnection = ({ formData = {} } = {}) => {
       setSessionId(data.sessionId);
       upsertSessionInListCache(dispatch, {
         id: data.sessionId,
-        status: data.status,
+        // The history API lists ended sessions only. Mark the optimistic row
+        // as active until the finalization poll receives the ended record.
+        status: data.status || 'active',
         createdAt: data.createdAt,
         topic: data.topic,
         preferences: data.preferences,

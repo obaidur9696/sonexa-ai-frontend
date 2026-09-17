@@ -15,7 +15,7 @@ const GENDER_OPTIONS = [{ value: 'male', label: 'Male' }, { value: 'female', lab
 const STRENGTH_LEVELS = [{ label: 'Weak', color: 'bg-red-500' }, { label: 'Fair', color: 'bg-amber-500' }, { label: 'Good', color: 'bg-blue-500' }, { label: 'Strong', color: 'bg-emerald-500' }];
 const getStrength = (password) => Math.min([password.length >= 8, /[A-Z]/.test(password), /[a-z]/.test(password), /[0-9]/.test(password), /[^A-Za-z0-9]/.test(password)].filter(Boolean).length, 4);
 const validate = {
-  firstName: (value) => !value.trim() ? 'First name is required' : '', lastName: (value) => !value.trim() ? 'Last name is required' : '',
+  name: (value) => !value.trim() ? 'Name is required' : '',
   email: (value) => !value ? 'Email is required' : !/\S+@\S+\.\S+/.test(value) ? 'Invalid email' : '',
   password: (value) => !value ? 'Password is required' : value.length < 8 ? 'Min 8 characters' : !/(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])/.test(value) ? 'Include uppercase, lowercase & number' : '',
   confirmPassword: (value, password) => !value ? 'Confirm your password' : value !== password ? "Passwords don't match" : '',
@@ -26,7 +26,7 @@ const Signup = () => {
   const navigate = useNavigate();
   const { register, isLoading } = useRegister();
   const { user } = useAuth();
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '', gender: '', age: 25 });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '', gender: '', age: 25 });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -42,11 +42,11 @@ const Signup = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setFormError('');
-    const nextErrors = { firstName: validate.firstName(form.firstName), lastName: validate.lastName(form.lastName), email: validate.email(form.email), password: validate.password(form.password), confirmPassword: validate.confirmPassword(form.confirmPassword, form.password), gender: validate.gender(form.gender) };
+    const nextErrors = { name: validate.name(form.name), email: validate.email(form.email), password: validate.password(form.password), confirmPassword: validate.confirmPassword(form.confirmPassword, form.password), gender: validate.gender(form.gender) };
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
     const { confirmPassword: _confirmPassword, ...payload } = form;
-    const result = await register(payload);
+    const result = await register({ ...payload, name: payload.name.trim() });
     if (result.success) { toast.success('Account created! Please sign in.'); navigate('/login'); return; }
     const message = result.error || 'Registration failed';
     setFormError(message);
@@ -56,7 +56,7 @@ const Signup = () => {
   return (
     <AuthPageShell compact title="Create your account" description="Join Sonexa AI and start natural conversations" maxWidth="max-w-2xl" footer="Your data is private and secure">
       <form onSubmit={handleSubmit} noValidate className="space-y-3 sm:space-y-4">
-        <div className="grid grid-cols-2 gap-3 sm:gap-4"><Input label="First Name" value={form.firstName} onChange={change('firstName')} error={errors.firstName} placeholder="Jane" autoComplete="given-name" fullWidth required /><Input label="Last Name" value={form.lastName} onChange={change('lastName')} error={errors.lastName} placeholder="Smith" autoComplete="family-name" fullWidth required /></div>
+        <Input label="Name" value={form.name} onChange={change('name')} error={errors.name} placeholder="Enter your name" autoComplete="name" fullWidth required />
         <Input label="Email Address" type="email" value={form.email} onChange={change('email')} error={errors.email} placeholder="you@example.com" autoComplete="email" fullWidth required icon={<Mail aria-hidden="true" className="h-4 w-4" />} />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
           <div><PasswordField label="Password" name="password" value={form.password} onChange={change('password')} error={errors.password} placeholder="Create password" show={showPassword} onToggle={() => setShowPassword((visible) => !visible)} autoComplete="new-password" />

@@ -23,6 +23,7 @@ const FeaturesSection = memo(() => (
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 text-2xl transition-transform duration-300 group-hover:scale-105 dark:from-indigo-500/10 dark:to-purple-500/10">{feature.icon}</div>
               <h3 className="mb-2 text-base font-bold text-gray-900 dark:text-white sm:text-lg">{feature.title}</h3>
               <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">{feature.description}</p>
+              {feature.note && <p className="mt-4 flex items-start gap-2 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-xs font-medium leading-relaxed text-indigo-700 dark:border-indigo-400/15 dark:bg-indigo-400/10 dark:text-indigo-200"><span aria-hidden="true" className="mt-0.5">✦</span><span>{feature.note}</span></p>}
             </div>
             <div className={`absolute inset-x-0 bottom-0 h-1 origin-left scale-x-0 bg-gradient-to-r ${feature.gradient} transition-transform duration-300 group-hover:scale-x-100`} />
           </motion.article>

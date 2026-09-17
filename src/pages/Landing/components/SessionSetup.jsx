@@ -9,7 +9,7 @@ import { GENDER_OPTIONS } from './landingConstants';
 import MicrophoneAccess from './MicrophoneAccess';
 
 const initialForm = {
-  firstName: '', lastName: '', gender: '', language: '', topic: '', voiceAccent: '', discussionDepth: 'concise', sensitivity: 0.7,
+  name: '', gender: '', language: '', topic: '', voiceAccent: '', discussionDepth: 'concise', sensitivity: 0.7,
 };
 
 const RequiredField = ({ id, label, error, children }) => (
@@ -130,9 +130,8 @@ const SessionSetup = memo(({
         <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.1 }} transition={{ delay: 0.08 }} className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl dark:border-white/6 dark:bg-gray-900/80">
           <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
           <form onSubmit={handleSubmit} className="space-y-6 p-5 sm:p-8 md:p-10">
-            {!user && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-              <Input label="First Name" value={form.firstName} onChange={(event) => setField('firstName', event.target.value)} placeholder="Enter first name" fullWidth />
-              <Input label="Last Name" value={form.lastName} onChange={(event) => setField('lastName', event.target.value)} placeholder="Enter last name" fullWidth />
+            {!user && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input label="Name" value={form.name} onChange={(event) => setField('name', event.target.value)} placeholder="Enter your name" autoComplete="name" fullWidth />
               <Dropdown label="Gender" options={GENDER_OPTIONS} value={form.gender} onChange={(option) => setField('gender', option)} placeholder="Select gender" fullWidth />
             </div>}
 

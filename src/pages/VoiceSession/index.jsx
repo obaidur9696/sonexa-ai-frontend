@@ -3,7 +3,7 @@
    Main voice session page - FIXED (No outer scrollbar)
    ============================================================ */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 
@@ -15,6 +15,10 @@ import FailedOverlay from '../../components/voice/FailedOverlay';
 import SessionEndedOverlay from '../../components/voice/SessionEndedOverlay';
 import { useAuth } from '../../providers/AuthProvider';
 import ConversationScreen from '../../components/voice/ConversationScreen';
+import {
+  claimVoiceSessionStartToken,
+  expireVoiceSessionStartToken,
+} from '../../services/webrtc/voiceSessionStartGuard';
 
 /* ── Ambient background glows ─────────────────────────────── */
 const AmbientBackground = () => (
@@ -67,8 +71,12 @@ const ControlsBar = ({ isMuted, onToggleMute, onLeave }) => (
 /* ══════════════════════════════════════════════════════════════
    MAIN PAGE COMPONENT
    ══════════════════════════════════════════════════════════════ */
-const ActiveVoiceSession = ({ formData, user }) => {
+const ActiveVoiceSession = ({ formData, user, sessionStartToken }) => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    return () => expireVoiceSessionStartToken(sessionStartToken);
+  }, [sessionStartToken]);
 
   // ✅ SMALL VALIDATION - Show FailedOverlay if no formData
   const enrichedFormData = useMemo(() => ({
@@ -92,9 +100,12 @@ const ActiveVoiceSession = ({ formData, user }) => {
     formData: enrichedFormData
   });
 
-  const handleGoHome = useCallback(() => navigate('/'), [navigate]);
+  // A session can only begin from Home. Replace this history entry after an
+  // exit so browser Back cannot remount the completed session with its old
+  // router state and start it again.
+  const handleGoHome = useCallback(() => navigate('/', { replace: true }), [navigate]);
   const handleRetry = useCallback(() => window.location.reload(), []);
-  const handleNewSession = useCallback(() => navigate('/'), [navigate]);
+  const handleNewSession = useCallback(() => navigate('/', { replace: true }), [navigate]);
 
   const handleLeave = useCallback(() => leaveSession(), [leaveSession]);
 
@@ -176,19 +187,21 @@ const VoiceSession = () => {
   const location = useLocation();
   const { user } = useAuth();
   const formData = useMemo(() => location.state?.formData ?? null, [location.state]);
+  const sessionStartToken = location.state?.sessionStartToken;
+  const [hasValidStart] = useState(() => claimVoiceSessionStartToken(sessionStartToken));
 
-  if (!formData || Object.keys(formData).length === 0) {
+  if (!formData || Object.keys(formData).length === 0 || !hasValidStart) {
     return (
       <FailedOverlay
-        onGoHome={() => navigate('/')}
-        onRetry={() => window.location.reload()}
-        errorMessage="Invalid session access. Please start a session from the home page."
+        onGoHome={() => navigate('/', { replace: true })}
+        onRetry={() => navigate('/', { replace: true })}
+        errorMessage="This session is no longer active. Please start a new session from the home page."
         autoCloseDelay={12000}
       />
     );
   }
 
-  return <ActiveVoiceSession formData={formData} user={user} />;
+  return <ActiveVoiceSession formData={formData} user={user} sessionStartToken={sessionStartToken} />;
 };
 
 export default VoiceSession;

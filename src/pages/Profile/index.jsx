@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useAuth } from '../../providers/AuthProvider';
+import { useCurrentUser } from '../../hooks/useAuth';
 import Loader from '../../components/ui/Loader/Loader';
 import Button from '../../components/ui/Button/Button';
 
@@ -14,8 +14,7 @@ const UI = {
   totalTalkTime: 'Total Talk Time',
   acrossAllSessions: 'Across all sessions',
   personalInfo: 'Personal Information',
-  firstName: 'First Name',
-  lastName: 'Last Name',
+  name: 'Name',
   gender: 'Gender',
   age: 'Age',
   email: 'Email Address',
@@ -98,7 +97,10 @@ const Field = ({ label, value }) => (
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  // The provider keeps this query subscribed for the entire app lifetime.
+  // Revalidating on this route ensures the activity cards reflect completed
+  // sessions without requiring a browser refresh.
+  const { user, isLoading } = useCurrentUser({ refetchOnMountOrArgChange: true });
 
   useEffect(() => {
     if (!isLoading && !user) navigate('/login', { replace: true });
@@ -113,8 +115,8 @@ const Profile = () => {
     ? new Date(u.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : '—';
 
-  const initials = [u.firstName, u.lastName]
-    .filter(Boolean).map(n => n[0].toUpperCase()).join('');
+  const initials = (u.name || '').trim().split(/\s+/)
+    .filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join('');
 
   const totalTalkTimeFormatted = formatDuration(u.totalTalkTimeSeconds || 0);
 
@@ -165,7 +167,7 @@ const Profile = () => {
               {/* User Info */}
               <div className="text-center sm:text-left flex-1">
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
-                  {u.firstName} {u.lastName}
+                  {u.name || '—'}
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5 justify-center sm:justify-start mt-1">
                   <Icon name="email" className="w-3.5 h-3.5" />
@@ -196,8 +198,7 @@ const Profile = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label={UI.firstName} value={u.firstName} />
-              <Field label={UI.lastName} value={u.lastName} />
+              <Field label={UI.name} value={u.name} />
               <Field label={UI.gender} value={u.gender ? u.gender.charAt(0).toUpperCase() + u.gender.slice(1) : undefined} />
               <Field label={UI.age} value={u.age ? `${u.age} years` : undefined} />
               <div className="sm:col-span-2"><Field label={UI.email} value={u.email} /></div>
